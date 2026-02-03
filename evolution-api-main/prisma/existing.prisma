@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_CONNECTION_URI")
+}
+
+model Clients {
+  id          Int             @id @default(autoincrement())
+  nome        String          @db.VarChar(255)
+  cpf_cnpj    String?         @db.VarChar(255)
+  email       String          @db.VarChar(255)
+  endereco    String?         @db.VarChar(255)
+  numero      String?         @db.VarChar(255)
+  bairro      String?         @db.VarChar(255)
+  cidade      String?         @db.VarChar(255)
+  estado      String?         @db.VarChar(255)
+  cep         String?         @db.VarChar(255)
+  phone       String?         @db.VarChar(255)
+  status      Clients_status? @default(ativo)
+  assinaturas assinaturas[]
+  invoices    invoices[]
+}
+
+model assinaturas {
+  id                      Int                          @id @default(autoincrement())
+  cliente_id              Int
+  valor                   Decimal                      @db.Decimal(10, 2)
+  vencimento_dia          Int
+  metodo_pagamento        assinaturas_metodo_pagamento
+  tipo                    assinaturas_tipo             @default(mensal)
+  data_primeiro_pagamento DateTime?                    @db.Date
+  envio_dia               Int?
+  dia_semana              assinaturas_dia_semana?
+  desconto                Decimal?                     @db.Decimal(10, 2)
+  desconto_tipo           assinaturas_desconto_tipo?
+  multa                   Decimal?                     @db.Decimal(10, 2)
+  multa_tipo              assinaturas_multa_tipo?
+  juros                   Decimal?                     @db.Decimal(10, 2)
+  juros_tipo              assinaturas_juros_tipo?
+  nome_cobranca           String?                      @db.VarChar(255)
+  status                  assinaturas_status           @default(ativo)
+  criado_em               DateTime                     @db.DateTime(0)
+  atualizado_em           DateTime                     @db.DateTime(0)
+  Clients                 Clients                      @relation(fields: [cliente_id], references: [id], onDelete: Cascade, map: "assinaturas_ibfk_1")
+  invoices                invoices[]
+
+  @@index([cliente_id], map: "cliente_id")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model clientes {
+  id       Int
+  nome     String? @db.VarChar(255)
+  cpf_cnpj String? @db.VarChar(20)
+  email    String? @db.VarChar(255)
+  telefone String? @db.VarChar(20)
+  endereco String? @db.Text
+  numero   String  @db.Text
+  bairro   String  @db.Text
+  cidade   String  @db.Text
+  estado   String  @db.Text
+  cep      Int
+  whatsapp String? @db.VarChar(20)
+  status   String? @default("ativo") @db.VarChar(20)
+
+  @@ignore
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model invoices {
+  id              Int                     @id @default(autoincrement())
+  subscription_id Int?
+  cliente_id      Int
+  amount          Decimal                 @db.Decimal(10, 2)
+  due_date        DateTime                @db.Date
+  paid_date       DateTime?               @db.DateTime(0)
+  status          invoices_status?        @default(pending)
+  payment_method  invoices_payment_method
+  payment_url     String?                 @db.VarChar(255)
+  payment_code    String?                 @db.Text
+  payment_details String?                 @db.LongText
+  provider_id     String?                 @db.VarChar(255)
+  title           String?                 @db.VarChar(255)
+  public_link     String?                 @db.VarChar(255)
+  notifications   String?                 @db.LongText
+  sent            Boolean?                @default(false)
+  createdAt       DateTime                @db.DateTime(0)
+  updatedAt       DateTime                @db.DateTime(0)
+  assinaturas     assinaturas?            @relation(fields: [subscription_id], references: [id], map: "invoices_ibfk_1")
+  Clients         Clients                 @relation(fields: [cliente_id], references: [id], onDelete: Cascade, map: "invoices_ibfk_2")
+
+  @@index([cliente_id], map: "cliente_id")
+  @@index([subscription_id], map: "subscription_id")
+}
+
+model usuarios {
+  id     Int              @id @default(autoincrement())
+  nome   String           @db.VarChar(255)
+  email  String           @unique(map: "email") @db.VarChar(255)
+  senha  String           @db.VarChar(255)
+  status usuarios_status? @default(ativo)
+  role   usuarios_role?   @default(user)
+}
+
+enum assinaturas_metodo_pagamento {
+  boleto
+  pix
+}
+
+enum usuarios_status {
+  ativo
+  inativo
+}
+
+enum assinaturas_tipo {
+  mensal
+  semanal
+  quinzenal
+}
+
+enum usuarios_role {
+  admin
+  user
+}
+
+enum invoices_status {
+  pending
+  paid
+  overdue
+  canceled
+}
+
+enum invoices_payment_method {
+  boleto
+  pix
+}
+
+enum assinaturas_dia_semana {
+  domingo
+  segunda
+  terca
+  quarta
+  quinta
+  sexta
+  sabado
+}
+
+enum assinaturas_desconto_tipo {
+  percentual
+  valor
+}
+
+enum Clients_status {
+  ativo
+  inativo
+}
+
+enum assinaturas_multa_tipo {
+  percentual
+  valor
+}
+
+enum assinaturas_juros_tipo {
+  percentual
+  valor
+}
+
+enum assinaturas_status {
+  ativo
+  inativo
+  cancelado
+}
