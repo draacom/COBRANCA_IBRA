@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fatura - <%= invoice.title || 'IBRA Informática' %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #0ea5e9; /* Sky 500 */
+      --primary-dark: #0284c7; /* Sky 600 */
+      --success-color: #10b981; /* Emerald 500 */
+      --warning-color: #f59e0b; /* Amber 500 */
+      --danger-color: #ef4444; /* Red 500 */
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-500: #6b7280;
+      --gray-700: #374151;
+      --gray-900: #111827;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background-color: var(--gray-50);
+      color: var(--gray-900);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .card-header {
+      background: white;
+      padding: 32px 32px 24px;
+      text-align: center;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .brand-logo-top {
+      display: block;
+      margin: 0 auto 24px;
+      max-height: 80px;
+      max-width: 200px;
+      object-fit: contain;
+    }
+
+    .invoice-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--gray-700);
+      margin: 0;
+    }
+
+    .invoice-amount {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin: 8px 0;
+      letter-spacing: -0.02em;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    
+    .status-pending { background-color: #fff7ed; color: #c2410c; }
+    .status-paid { background-color: #ecfdf5; color: #047857; }
+    .status-overdue { background-color: #fef2f2; color: #b91c1c; }
+    .status-canceled { background-color: #f3f4f6; color: #4b5563; text-decoration: line-through; }
+
+    .card-body {
+      padding: 32px;
+    }
+
+    .info-group {
+      margin-bottom: 24px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 0.95rem;
+    }
+
+    .info-label {
+      color: var(--gray-500);
+    }
+
+    .info-value {
+      font-weight: 500;
+      color: var(--gray-900);
+      text-align: right;
+    }
+
+    .divider {
+      height: 1px;
+      background-color: var(--gray-200);
+      margin: 24px 0;
+    }
+
+    /* Payment Section */
+    .payment-section {
+      text-align: center;
+    }
+
+    .payment-header {
+      font-weight: 600;
+      color: var(--gray-900);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    /* Boleto Button */
+    .btn-boleto {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      background-color: var(--gray-900);
+      color: white;
+      padding: 14px 24px;
+      border-radius: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      box-sizing: border-box;
+    }
+
+    .btn-boleto:hover {
+      background-color: black;
+      transform: translateY(-1px);
+    }
+
+    /* Pix Section */
+    .qr-container {
+      background: white;
+      border: 2px solid var(--gray-200);
+      padding: 24px;
+      border-radius: 12px;
+      display: inline-block;
+      margin-bottom: 24px;
+    }
+
+    .qr-code {
+      width: 100%;
+      max-width: 400px;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .pix-copy-container {
+      position: relative;
+      margin-top: 16px;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .pix-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--gray-300);
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: var(--gray-700);
+      background-color: white;
+      box-sizing: border-box;
+      outline: none;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .btn-copy {
+      position: static;
+      width: 100%;
+      padding: 12px;
+      background-color: var(--primary-color);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 1rem;
+    }
+
+    .btn-copy:hover {
+      background-color: var(--primary-dark);
+    }
+
+    .btn-copy.copied {
+      background-color: var(--success-color);
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 32px;
+      color: var(--gray-500);
+      font-size: 0.875rem;
+    }
+
+    /* Loading & Error */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--gray-200);
+      border-top-color: var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg {
+      background-color: #fef2f2;
+      border: 1px solid #fee2e2;
+      color: #991b1b;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    /* Utilities */
+    .hidden { display: none !important; }
+    .mt-4 { margin-top: 1rem; }
+    .text-sm { font-size: 0.875rem; }
+    .text-center { text-align: center; }
+  </style>
+</head>
+<body>
+
+  <!-- Loading State -->
+  <div id="loading" class="loading-overlay">
+    <div class="spinner"></div>
+    <p class="mt-4 text-sm" style="color: var(--gray-500)">Carregando detalhes da fatura...</p>
+  </div>
+
+  <div class="container">
+    <!-- Logo at the top of the page, outside the card -->
+    <div class="text-center" style="margin-bottom: 24px;">
+      <img src="<%= (branding && branding.logoUrl) ? branding.logoUrl : '/brand/logo.png' %>" alt="Logo" class="brand-logo-top" onerror="console.error('Erro ao carregar logo:', this.src); this.style.display='none'">
+    </div>
+
+    <div id="errorContainer" class="error-msg hidden"></div>
+
+    <div id="invoiceCard" class="card hidden">
+      <div class="card-header">
+        <p class="invoice-title" id="invoiceTitle">Fatura de Serviços</p>
+        <div class="invoice-amount" id="invoiceAmount">R$ 0,00</div>
+        <span id="statusBadge" class="status-badge status-pending">Pendente</span>
+      </div>
+
+      <div class="card-body">
+        <!-- Client Info -->
+        <div class="info-group">
+          <div class="info-row">
+            <span class="info-label">Cliente</span>
+            <span class="info-value" id="clientName">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">CPF/CNPJ</span>
+            <span class="info-value" id="clientDoc">-</span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Invoice Details -->
+        <div class="info-group">
+          <div class="info-row">
+            <span class="info-label">Vencimento</span>
+            <span class="info-value" id="dueDate">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Fatura #</span>
+            <span class="info-value" id="invoiceId">-</span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Payment Section -->
+        <div id="paymentSection" class="payment-section">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>&copy; <span id="year"></span> IBRA Informática. Pagamento processado via Safe2Pay.</p>
+    </div>
+  </div>
+
+  <!-- Optional: Server Data Injection (Safe) -->
+  <% if (typeof invoice !== 'undefined' && invoice) { %>
+  <script id="server-data" type="application/json">
+    <%- JSON.stringify(invoice) %>
+  </script>
+  <% } %>
+
+  <script>
+    // Utils
+    const $ = (id) => document.getElementById(id);
+    const formatMoney = (val) => Number(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const formatDate = (dateStr) => {
+        if(!dateStr) return '-';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('pt-BR');
+    };
+
+    // Main
+    (function() {
+      $('year').textContent = new Date().getFullYear();
+
+      // Tentar pegar dados injetados (SSR)
+      let serverData = null;
+      try {
+          // Usar uma string segura para evitar erro de syntax se a tag EJS falhar ou não for processada
+          // Se estiver rodando como HTML estático, isso vai ser tratado no catch ou ignorado
+          const dataScript = document.getElementById('server-data');
+          if (dataScript) {
+             serverData = JSON.parse(dataScript.textContent);
+          }
+      } catch (e) {
+          console.log('No SSR data found, falling back to fetch');
+      }
+
+      // Se não tiver dados injetados, tentar fetch (CSR)
+      if (serverData) {
+          console.log('Rendering with server data:', serverData);
+          renderInvoice(serverData);
+      } else {
+          // Extrair ID da URL
+          const pathParts = window.location.pathname.split('/');
+          const idIndex = pathParts.indexOf('invoice') + 1;
+          const invoiceId = (idIndex > 0 && idIndex < pathParts.length) ? pathParts[idIndex] : null;
+
+          if (invoiceId) {
+              fetchInvoice(invoiceId);
+          } else {
+              showError('ID da fatura não encontrado na URL.');
+          }
+      }
+    })();
+
+    function fetchInvoice(id) {
+        fetch(`/public/invoice/${id}/json`)
+            .then(res => {
+                if (!res.ok) throw new Error('Fatura não encontrada');
+                return res.json();
+            })
+            .then(data => {
+                renderInvoice(data);
+            })
+            .catch(err => {
+                console.error(err);
+                showError('Erro ao carregar fatura: ' + err.message);
+            });
+    }
+
+    function showError(msg) {
+      $('loading').classList.add('hidden');
+      $('errorContainer').textContent = msg;
+      $('errorContainer').classList.remove('hidden');
+    }
+
+    function renderInvoice(data) {
+      $('loading').classList.add('hidden');
+      $('invoiceCard').classList.remove('hidden');
+
+      // Basic Info
+      $('invoiceAmount').textContent = formatMoney(data.amount);
+      $('clientName').textContent = data.client?.name || 'Cliente Consumidor';
+      $('clientDoc').textContent = data.client?.document || '-';
+      $('dueDate').textContent = formatDate(data.due_date);
+      $('invoiceId').textContent = data.id;
+      $('invoiceTitle').textContent = data.title || 'Fatura de Serviços';
+
+      // Status
+      const statusMap = {
+        'paid': { text: 'Paga', class: 'status-paid' },
+        'pending': { text: 'Pendente', class: 'status-pending' },
+        'overdue': { text: 'Vencida', class: 'status-overdue' },
+        'canceled': { text: 'Cancelada', class: 'status-canceled' }
+      };
+      
+      const st = statusMap[data.status] || { text: data.status, class: 'status-pending' };
+      const badge = $('statusBadge');
+      badge.textContent = st.text;
+      badge.className = `status-badge ${st.class}`;
+
+      // Payment Render
+      const container = $('paymentSection');
+      container.innerHTML = '';
+
+      if (data.status === 'paid') {
+        container.innerHTML = `
+          <div style="color: var(--success-color); font-weight: 600;">
+            <svg style="width: 48px; height: 48px; margin-bottom: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <p>Fatura paga com sucesso!</p>
+          </div>`;
+        return;
+      }
+
+      if (data.status === 'canceled') {
+        container.innerHTML = '<p style="color: var(--gray-500)">Esta fatura foi cancelada.</p>';
+        return;
+      }
+
+      // Boleto
+      if (data.payment_method === 'boleto') {
+        const boletoUrl = data.boleto?.url || data.payment_url;
+        const boletoCode = data.boleto?.code || data.payment_code;
+
+        if (boletoUrl) {
+          let boletoHtml = `
+            <div class="payment-header">
+              <svg style="width: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              Boleto Bancário
+            </div>
+            <a href="${boletoUrl}" target="_blank" class="btn-boleto">
+              Visualizar Boleto
+            </a>
+          `;
+
+          if (boletoCode) {
+            // Escapar aspas duplas
+            const safeBoletoCode = boletoCode.replace(/"/g, '&quot;');
+            boletoHtml += `
+              <div class="pix-copy-container" style="margin-top: 16px;">
+                <span class="text-sm" style="color: var(--gray-700); font-weight: 500;">Linha Digitável</span>
+                <input type="text" class="pix-input" value="${safeBoletoCode}" readonly onclick="this.select()">
+                <button class="btn-copy" data-code="${safeBoletoCode}" onclick="copyPixCode(this)">
+                  Copiar código
+                </button>
+              </div>
+            `;
+          }
+
+          boletoHtml += `
+            <p class="text-sm mt-4" style="color: var(--gray-500)">Clique para abrir o PDF do boleto</p>
+          `;
+
+          container.innerHTML = boletoHtml;
+        } else {
+            container.innerHTML = '<p class="error-msg">Link do boleto indisponível.</p>';
+        }
+      } 
+      // PIX
+      else if ((data.payment_method === 'pix' || (data.payment_method && data.payment_method.toLowerCase() === 'pix')) && data.pix) {
+        console.log('Dados Pix Recebidos:', data.pix); // Debug
+        
+        const qrCode = data.pix.qrCode;
+        const copyPaste = data.pix.copyPaste || data.pix.code;
+
+        let html = `
+          <div class="payment-header">
+            <svg style="width: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+            Pagamento via Pix
+          </div>
+        `;
+
+        // QR Code Image
+        if (qrCode) {
+             const imgSrc = (qrCode.startsWith('http') || qrCode.startsWith('data:')) 
+                ? qrCode 
+                : `data:image/png;base64,${qrCode}`;
+
+          html += `
+            <div class="qr-container" id="qrCodeContainer">
+              <img src="${imgSrc}" alt="QR Code Pix" class="qr-code" onerror="this.parentElement.style.display='none'">
+            </div>
+            <p class="text-sm" style="color: var(--gray-500); margin-bottom: 16px;">Abra o app do seu banco e escaneie o código.</p>
+          `;
+        }
+
+        // Link Button (Fallback) - REMOVIDO A PEDIDO
+        /*
+        if (data.pix.url) {
+             html += `
+                <div style="margin-bottom: 16px;">
+                    <a href="${data.pix.url}" target="_blank" class="btn-boleto" style="background-color: #0ea5e9; margin-bottom: 16px;">
+                        <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        Abrir Link de Pagamento
+                    </a>
+                </div>
+             `;
+        }
+        */
+
+        // Pix Copia e Cola
+        if (copyPaste) {
+          // Escapar aspas duplas para o value do input e data attribute
+          const safeCode = copyPaste.replace(/"/g, '&quot;');
+          
+          html += `
+            <div class="pix-copy-container">
+              <span class="text-sm" style="color: var(--gray-700); font-weight: 500;">Pix Copia e Cola</span>
+              <input type="text" class="pix-input" value="${safeCode}" readonly onclick="this.select()">
+              <button class="btn-copy" data-code="${safeCode}" onclick="copyPixCode(this)">
+                Copiar código
+              </button>
+            </div>
+          `;
+        }
+
+        container.innerHTML = html;
+      }
+    }
+
+    // Global scope for onclick
+    window.copyPixCode = function(btn) {
+        const code = btn.dataset.code;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(code).then(() => {
+                const originalText = btn.innerText;
+                btn.innerText = 'Copiado!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+            }).catch(err => console.error('Erro ao copiar', err));
+        } else {
+             // Fallback
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            const originalText = btn.innerText;
+            btn.innerText = 'Copiado!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.classList.remove('copied');
+            }, 2000);
+        }
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+{
+  "name": "sistema-cobranca",
+  "version": "1.0.0",
+  "description": "Sistema de cobrança automática via WhatsApp e email com integração ao banco Cora",
+  "main": "src/index.js",
+  "scripts": {
+    "start:back": "node src/index.js",
+    "start:front": "HOST=0.0.0.0 npm run start --prefix frontend",
+    "start": "node start.js",
+    "dev": "nodemon src/index.js",
+    "worker": "node src/worker/worker.js",
+    "scheduler": "node src/worker/scheduler.js",
+    "test": "jest",
+    "migrate:hostinger": "",
+    "sync:schema": "",
+    "migrate:assinaturas": ""
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "bcrypt": "^5.1.1",
+    "bullmq": "^4.12.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "ejs": "^3.1.10",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "mysql2": "^3.15.2",
+    "nodemailer": "^6.9.7",
+    "pg": "^8.11.3",
+    "pg-hstore": "^2.3.4",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "safe2pay": "^1.1.12",
+    "sequelize": "^6.35.1",
+    "uuid": "^9.0.1",
+    "whatsapp-web.js": "^1.23.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1",
+    "sequelize-cli": "^6.6.2",
+    "supertest": "^6.3.3"
+  }
+}
