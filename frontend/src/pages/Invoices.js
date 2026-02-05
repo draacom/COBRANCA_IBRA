@@ -34,6 +34,7 @@ const Invoices = () => {
     end_date: '',
     sent: ''
   });
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [filteredInvoices, setFilteredInvoices] = useState([]);
 
   // Helpers de data sem timezone (YYYY-MM-DD)
@@ -72,16 +73,25 @@ const Invoices = () => {
     fetchData();
   }, []);
 
-  // Aplicar filtros em tempo real
+  // Debounce filters
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [filters]);
+
+  // Aplicar filtros em tempo real (usando debouncedFilters)
   useEffect(() => {
     let filtered = invoices;
 
-    if (filters.status) {
-      filtered = filtered.filter(invoice => invoice.status === filters.status);
+    if (debouncedFilters.status) {
+      filtered = filtered.filter(invoice => invoice.status === debouncedFilters.status);
     }
 
-    if (filters.client_query) {
-      const q = filters.client_query.trim().toLowerCase();
+    if (debouncedFilters.client_query) {
+      const q = debouncedFilters.client_query.trim().toLowerCase();
       filtered = filtered.filter(invoice => {
         const name = invoice.client?.name ? invoice.client.name.toLowerCase() : '';
         const email = invoice.client?.email ? invoice.client.email.toLowerCase() : '';
@@ -89,30 +99,30 @@ const Invoices = () => {
       });
     }
 
-    if (filters.start_date) {
+    if (debouncedFilters.start_date) {
       filtered = filtered.filter(invoice => {
         const inv = isYMD(invoice.due_date) ? invoice.due_date : toYMDLocal(new Date(invoice.due_date));
-        return inv >= filters.start_date;
+        return inv >= debouncedFilters.start_date;
       });
     }
 
-    if (filters.end_date) {
+    if (debouncedFilters.end_date) {
       filtered = filtered.filter(invoice => {
         const inv = isYMD(invoice.due_date) ? invoice.due_date : toYMDLocal(new Date(invoice.due_date));
-        return inv <= filters.end_date;
+        return inv <= debouncedFilters.end_date;
       });
     }
 
-    if (filters.sent) {
-      if (filters.sent === 'sent') {
+    if (debouncedFilters.sent) {
+      if (debouncedFilters.sent === 'sent') {
         filtered = filtered.filter(invoice => invoice.sent_at);
-      } else if (filters.sent === 'not_sent') {
+      } else if (debouncedFilters.sent === 'not_sent') {
         filtered = filtered.filter(invoice => !invoice.sent_at);
       }
     }
 
     setFilteredInvoices(filtered);
-  }, [invoices, filters]);
+  }, [invoices, debouncedFilters]);
 
   const fetchData = async () => {
     try {

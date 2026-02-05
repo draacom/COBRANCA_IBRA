@@ -24,6 +24,7 @@ const Clients = () => {
     address: '',
     status: ''
   });
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [filteredClients, setFilteredClients] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
@@ -52,40 +53,49 @@ const Clients = () => {
     fetchClients();
   }, []);
 
-  // Aplicar filtros em tempo real
+  // Debounce filters
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [filters]);
+
+  // Aplicar filtros em tempo real (usando debouncedFilters)
   useEffect(() => {
     let filtered = clients;
 
-    if (filters.name) {
+    if (debouncedFilters.name) {
       filtered = filtered.filter(client =>
-        client.name?.toLowerCase().includes(filters.name.toLowerCase())
+        client.name?.toLowerCase().includes(debouncedFilters.name.toLowerCase())
       );
     }
 
-    if (filters.document) {
+    if (debouncedFilters.document) {
       filtered = filtered.filter(client =>
-        client.document?.includes(filters.document)
+        client.document?.includes(debouncedFilters.document)
       );
     }
 
-    if (filters.phone) {
+    if (debouncedFilters.phone) {
       filtered = filtered.filter(client =>
-        client.phone?.includes(filters.phone)
+        client.phone?.includes(debouncedFilters.phone)
       );
     }
 
-    if (filters.address) {
+    if (debouncedFilters.address) {
       filtered = filtered.filter(client => {
         const fullAddress = `${client.address?.endereco || ''} ${client.address?.numero || ''} ${client.address?.bairro || ''} ${client.address?.cidade || ''} ${client.address?.estado || ''}`.toLowerCase();
-        return fullAddress.includes(filters.address.toLowerCase());
+        return fullAddress.includes(debouncedFilters.address.toLowerCase());
       });
     }
 
-    if (filters.status) {
+    if (debouncedFilters.status) {
       filtered = filtered.filter(client => {
-        if (filters.status === 'active') {
+        if (debouncedFilters.status === 'active') {
           return client.active === true;
-        } else if (filters.status === 'inactive') {
+        } else if (debouncedFilters.status === 'inactive') {
           return client.active === false;
         }
         return true;
@@ -93,7 +103,7 @@ const Clients = () => {
     }
 
     setFilteredClients(filtered);
-  }, [clients, filters]);
+  }, [clients, debouncedFilters]);
 
   const fetchClients = async () => {
     try {
