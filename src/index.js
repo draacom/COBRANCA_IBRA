@@ -46,8 +46,8 @@ app.use('/favicon.ico', express.static(path.join(__dirname, '..', 'frontend', 'p
 // Manifest PWA
 app.use('/manifest.json', express.static(path.join(__dirname, '..', 'frontend', 'public', 'manifest.json')));
 
-// Rota principal
-app.get('/', (req, res) => {
+// Rota principal da API (movida para /api/status para não conflitar com frontend)
+app.get('/api/status', (req, res) => {
   res.json({ 
     message: 'Sistema de Cobrança API', 
     status: 'online',
