@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 
+const settings = require('../config/settings');
+
 exports.authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -13,7 +15,7 @@ exports.authenticate = async (req, res, next) => {
     }
     
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, settings.jwt.secret);
     
     const user = await User.findByPk(decoded.id);
     if (!user || user.status !== 'ativo') {
