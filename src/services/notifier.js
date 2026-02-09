@@ -160,6 +160,11 @@ class Notifier {
   }
 
   async initWhatsApp() {
+    // Evitar inicialização do Puppeteer se o provedor for Evolution
+    if (settings.whatsapp.provider === 'evolution') {
+      return;
+    }
+
     try {
       if (this.whatsappClient) {
         console.log('⚠️ Cliente anterior detectado em initWhatsApp, destruindo...');
@@ -311,7 +316,7 @@ class Notifier {
 
   // Método para obter QR code como string base64
   async getWhatsAppQRCode() {
-    const provider = process.env.WHATSAPP_PROVIDER || 'whatsapp-web';
+    const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
       const apiUrl = process.env.WHATSAPP_API_URL;
@@ -378,7 +383,7 @@ class Notifier {
 
   // Método para obter status detalhado do WhatsApp
   async getWhatsAppDetailedStatus() {
-    const provider = process.env.WHATSAPP_PROVIDER || 'whatsapp-web';
+    const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
       await this.checkEvolutionStatus();
@@ -417,7 +422,7 @@ class Notifier {
 
   // Método para forçar reconexão do WhatsApp
   async reconnectWhatsApp() {
-    const provider = process.env.WHATSAPP_PROVIDER || 'whatsapp-web';
+    const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
       const apiUrl = process.env.WHATSAPP_API_URL;
