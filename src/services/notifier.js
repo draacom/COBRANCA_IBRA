@@ -319,9 +319,9 @@ class Notifier {
     const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
-      const apiUrl = process.env.WHATSAPP_API_URL;
-      const apiKey = process.env.WHATSAPP_API_KEY;
-      const instanceName = process.env.WHATSAPP_INSTANCE_NAME || 'default';
+      const apiUrl = settings.whatsapp.evolution.url;
+      const apiKey = settings.whatsapp.evolution.apiKey;
+      const instanceName = settings.whatsapp.evolution.instanceName;
 
       if (!apiUrl || !apiKey) return null;
 
@@ -425,9 +425,9 @@ class Notifier {
     const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
-      const apiUrl = process.env.WHATSAPP_API_URL;
-      const apiKey = process.env.WHATSAPP_API_KEY;
-      const instanceName = process.env.WHATSAPP_INSTANCE_NAME || 'default';
+      const apiUrl = settings.whatsapp.evolution.url;
+      const apiKey = settings.whatsapp.evolution.apiKey;
+      const instanceName = settings.whatsapp.evolution.instanceName;
 
       if (!apiUrl || !apiKey) {
         return { success: false, message: 'API Evolution não configurada' };
@@ -735,7 +735,7 @@ Qualquer dúvida, estamos à disposição.
 
   // Método para verificar status da conexão WhatsApp
   async getWhatsAppStatus() {
-    const provider = process.env.WHATSAPP_PROVIDER || 'whatsapp-web';
+    const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
       await this.checkEvolutionStatus();
@@ -749,7 +749,7 @@ Qualquer dúvida, estamos à disposição.
 
   // Método específico para envio em massa
   async sendBulkWhatsAppMessage(phone, message, mediaFile = null) {
-    const provider = process.env.WHATSAPP_PROVIDER || 'whatsapp-web';
+    const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
       if (mediaFile) {
@@ -757,8 +757,8 @@ Qualquer dúvida, estamos à disposição.
       }
       return this.sendWhatsAppViaAPI(phone, message, {
         provider: 'evolution',
-        apiUrl: process.env.WHATSAPP_API_URL,
-        apiKey: process.env.WHATSAPP_API_KEY
+        apiUrl: settings.whatsapp.evolution.url,
+        apiKey: settings.whatsapp.evolution.apiKey
       });
     }
 
@@ -846,13 +846,13 @@ Qualquer dúvida, estamos à disposição.
 *IBRA Informática / IBRA Soft*`;
 
     // Verificar se o WhatsApp está habilitado
-    if (process.env.WHATSAPP_ENABLED === 'true') {
+    if (settings.whatsapp.enabled) {
       try {
         // Enviar via API configurada
         const result = await this.sendWhatsAppViaAPI(recipient.phone, message, {
-          provider: process.env.WHATSAPP_PROVIDER || 'evolution',
-          apiUrl: process.env.WHATSAPP_API_URL,
-          apiKey: process.env.WHATSAPP_API_KEY
+          provider: settings.whatsapp.provider || 'evolution',
+          apiUrl: settings.whatsapp.evolution.url,
+          apiKey: settings.whatsapp.evolution.apiKey
         });
         
         console.log('WhatsApp enviado com sucesso:', result);
@@ -985,10 +985,10 @@ Qualquer dúvida, estamos à disposição.
       } else if (provider === 'evolution' && apiUrl && apiKey) {
         console.log(`Tentando enviar WhatsApp via Evolution API para ${cleanPhone}`);
         console.log(`URL da API: ${apiUrl}`);
-        console.log(`Instance: ${process.env.WHATSAPP_INSTANCE_NAME || 'default'}`);
+        console.log(`Instance: ${settings.whatsapp.evolution.instanceName}`);
         
         try {
-          const response = await axios.post(`${apiUrl}/message/sendText/${process.env.WHATSAPP_INSTANCE_NAME || 'default'}`, {
+          const response = await axios.post(`${apiUrl}/message/sendText/${settings.whatsapp.evolution.instanceName}`, {
             number: cleanPhone,
             text: message
           }, {
@@ -1063,7 +1063,7 @@ Qualquer dúvida, estamos à disposição.
   async sendPaymentConfirmationMessage(invoice, client) {
     console.log('💰 Enviando mensagem de confirmação de pagamento...');
     
-    if (!process.env.WHATSAPP_ENABLED || process.env.WHATSAPP_ENABLED !== 'true') {
+    if (!settings.whatsapp.enabled) {
       console.log('WhatsApp não está habilitado');
       return {
         success: false,
