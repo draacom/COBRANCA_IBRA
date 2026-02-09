@@ -11,6 +11,7 @@
     "worker": "node src/worker/worker.js",
     "scheduler": "node src/worker/scheduler.js",
     "test": "jest",
+    "postinstall": "cd evolution-api-main && npm install && npm run build",
     "migrate:hostinger": "",
     "sync:schema": "",
     "migrate:assinaturas": ""

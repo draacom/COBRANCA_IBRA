@@ -203,7 +203,13 @@ async function startEvolution() {
     cwd: evolutionPath,
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: false,
-    env: { ...process.env, PORT: '8081', SERVER_PORT: '8081' }
+    env: { 
+      ...process.env, 
+      PORT: '8081', 
+      SERVER_PORT: '8081',
+      AUTHENTICATION_API_KEY: process.env.WHATSAPP_API_KEY || '30fc8d3c-b9e5-483e-b0da-a0b6ec082f39',
+      SERVER_URL: 'http://localhost:8081'
+    }
   });
 
   evolution.stdout.on('data', (d) => {
