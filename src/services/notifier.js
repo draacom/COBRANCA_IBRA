@@ -319,9 +319,9 @@ class Notifier {
     const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
-      const apiUrl = settings.whatsapp.evolution.url;
-      const apiKey = settings.whatsapp.evolution.apiKey;
-      const instanceName = settings.whatsapp.evolution.instanceName;
+      const apiUrl = process.env.WHATSAPP_API_URL;
+      const apiKey = process.env.WHATSAPP_API_KEY;
+      const instanceName = process.env.WHATSAPP_INSTANCE_NAME || 'default';
 
       if (!apiUrl || !apiKey) return null;
 
@@ -425,9 +425,9 @@ class Notifier {
     const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
-      const apiUrl = settings.whatsapp.evolution.url;
-      const apiKey = settings.whatsapp.evolution.apiKey;
-      const instanceName = settings.whatsapp.evolution.instanceName;
+      const apiUrl = process.env.WHATSAPP_API_URL;
+      const apiKey = process.env.WHATSAPP_API_KEY;
+      const instanceName = process.env.WHATSAPP_INSTANCE_NAME || 'default';
 
       if (!apiUrl || !apiKey) {
         return { success: false, message: 'API Evolution não configurada' };
@@ -735,21 +735,25 @@ Qualquer dúvida, estamos à disposição.
 
   // Método para verificar status da conexão WhatsApp
   async getWhatsAppStatus() {
-    const provider = settings.whatsapp.provider;
+    const status = {
+      enabled: process.env.WHATSAPP_ENABLED === 'true',
+      provider: process.env.WHATSAPP_PROVIDER || 'unknown',
+      status: 'unknown'
+    };
 
-    if (provider === 'evolution') {
+    if (status.provider === 'evolution') {
       await this.checkEvolutionStatus();
     }
 
-    return {
-      ready: this.whatsappReady,
-      status: this.whatsappReady ? 'connected' : 'disconnected'
-    };
+    status.ready = this.whatsappReady;
+    status.status = this.whatsappReady ? 'connected' : 'disconnected';
+
+    return status;
   }
 
   // Método específico para envio em massa
   async sendBulkWhatsAppMessage(phone, message, mediaFile = null) {
-    const provider = settings.whatsapp.provider;
+    const provider = process.env.WHATSAPP_PROVIDER || 'whatsapp-web';
 
     if (provider === 'evolution') {
       if (mediaFile) {
@@ -757,8 +761,8 @@ Qualquer dúvida, estamos à disposição.
       }
       return this.sendWhatsAppViaAPI(phone, message, {
         provider: 'evolution',
-        apiUrl: settings.whatsapp.evolution.url,
-        apiKey: settings.whatsapp.evolution.apiKey
+        apiUrl: process.env.WHATSAPP_API_URL,
+        apiKey: process.env.WHATSAPP_API_KEY
       });
     }
 
@@ -846,13 +850,13 @@ Qualquer dúvida, estamos à disposição.
 *IBRA Informática / IBRA Soft*`;
 
     // Verificar se o WhatsApp está habilitado
-    if (settings.whatsapp.enabled) {
+    if (process.env.WHATSAPP_ENABLED === 'true') {
       try {
         // Enviar via API configurada
         const result = await this.sendWhatsAppViaAPI(recipient.phone, message, {
-          provider: settings.whatsapp.provider || 'evolution',
-          apiUrl: settings.whatsapp.evolution.url,
-          apiKey: settings.whatsapp.evolution.apiKey
+          provider: process.env.WHATSAPP_PROVIDER || 'evolution',
+          apiUrl: process.env.WHATSAPP_API_URL,
+          apiKey: process.env.WHATSAPP_API_KEY
         });
         
         console.log('WhatsApp enviado com sucesso:', result);
@@ -985,10 +989,10 @@ Qualquer dúvida, estamos à disposição.
       } else if (provider === 'evolution' && apiUrl && apiKey) {
         console.log(`Tentando enviar WhatsApp via Evolution API para ${cleanPhone}`);
         console.log(`URL da API: ${apiUrl}`);
-        console.log(`Instance: ${settings.whatsapp.evolution.instanceName}`);
+        console.log(`Instance: ${process.env.WHATSAPP_INSTANCE_NAME || 'default'}`);
         
         try {
-          const response = await axios.post(`${apiUrl}/message/sendText/${settings.whatsapp.evolution.instanceName}`, {
+          const response = await axios.post(`${apiUrl}/message/sendText/${process.env.WHATSAPP_INSTANCE_NAME || 'default'}`, {
             number: cleanPhone,
             text: message
           }, {
