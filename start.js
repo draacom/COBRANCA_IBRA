@@ -138,6 +138,52 @@ async function startEvolution() {
     return null;
   }
 
+  // Verificar se o build existe, se não, tentar compilar
+  const distPath = path.join(evolutionPath, 'dist', 'main.js');
+  if (!fs.existsSync(distPath)) {
+    log('⚠️  Build da Evolution API não encontrado. Tentando compilar...', 'yellow');
+    
+    try {
+      // Verificar se node_modules existe, se não, instalar
+      if (!fs.existsSync(path.join(evolutionPath, 'node_modules'))) {
+        log('📦 Instalando dependências da Evolution API...', 'blue');
+        const isWin = process.platform === 'win32';
+        const installCmd = isWin ? 'cmd.exe' : 'npm';
+        const installArgs = isWin ? ['/c', 'npm', 'install'] : ['install'];
+        
+        await new Promise((resolve, reject) => {
+          const install = spawn(installCmd, installArgs, {
+            cwd: evolutionPath,
+            stdio: 'inherit',
+            shell: false
+          });
+          install.on('close', code => code === 0 ? resolve() : reject(new Error(`Install failed: ${code}`)));
+          install.on('error', reject);
+        });
+      }
+
+      log('🔨 Compilando Evolution API...', 'blue');
+      const isWin = process.platform === 'win32';
+      const buildCmd = isWin ? 'cmd.exe' : 'npm';
+      const buildArgs = isWin ? ['/c', 'npm', 'run', 'build'] : ['run', 'build'];
+      
+      await new Promise((resolve, reject) => {
+        const build = spawn(buildCmd, buildArgs, {
+          cwd: evolutionPath,
+          stdio: 'inherit',
+          shell: false
+        });
+        build.on('close', code => code === 0 ? resolve() : reject(new Error(`Build failed: ${code}`)));
+        build.on('error', reject);
+      });
+      
+      log('✅ Build da Evolution API concluído!', 'green');
+    } catch (err) {
+      log(`❌ Falha ao preparar Evolution API: ${err.message}`, 'red');
+      log('⚠️  Tentando iniciar mesmo assim (pode falhar)...', 'yellow');
+    }
+  }
+
   const inUse = await isPortInUse(Number(evolutionPort));
   if (inUse) {
     log(`⚠️  Porta ${evolutionPort} já está em uso. Evolution API pode já estar rodando.`, 'yellow');
