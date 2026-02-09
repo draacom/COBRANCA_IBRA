@@ -38,16 +38,14 @@ function sleep(ms) {
 }
 
 async function startBackend() {
-  const backendPort = 3001;
-  log('🚀 Iniciando Backend...', 'blue');
+  const backendPort = process.env.PORT || 8080;
+  log('🚀 Iniciando Backend (Porta ' + backendPort + ')...', 'blue');
 
   const inUse = await isPortInUse(Number(backendPort));
   if (inUse) {
     log(`⚠️  Porta ${backendPort} já está em uso. Backend pode já estar rodando.`, 'yellow');
-    // Não retornamos null aqui para permitir tentar iniciar mesmo assim, 
-    // ou assumimos que devemos continuar. Mas o código original retornava null.
-    // Vamos manter o comportamento mas forçar a porta 3001 no spawn.
-    return null; 
+    // Em produção/deploy, se a porta já estiver em uso, pode ser fatal.
+    // Mas vamos tentar rodar mesmo assim caso seja um falso positivo ou socket lingering.
   }
 
   const isWin = process.platform === 'win32';
@@ -57,8 +55,7 @@ async function startBackend() {
   const backend = spawn(cmd, args, {
     cwd: path.resolve(__dirname),
     stdio: ['pipe', 'pipe', 'pipe'],
-    shell: false,
-    env: { ...process.env, PORT: '3001' }
+    shell: false
   });
 
   backend.stdout.on('data', (d) => {
@@ -177,8 +174,7 @@ async function startEvolution() {
 
 async function main() {
   log('🔥 Iniciando Sistema de Cobrança...', 'bright');
-  log('📋 Backend: http://localhost:3001', 'blue');
-  log('🌐 Frontend: http://localhost:8080', 'cyan');
+  log('🚀 Servidor (Frontend + Backend): http://localhost:8080', 'blue');
   log('🔗 Evolution API: http://localhost:8081', 'magenta');
   log('', 'reset');
 
@@ -190,8 +186,9 @@ async function main() {
     const evolution = await startEvolution();
     if (evolution) processes.push(evolution);
 
-    const frontend = await startFrontend();
-    if (frontend) processes.push(frontend);
+    // Frontend agora é servido pelo backend, não precisamos iniciar separado
+    // const frontend = await startFrontend();
+    // if (frontend) processes.push(frontend);
 
     if (processes.length === 0) {
       log('❌ Nenhum processo foi iniciado. Verifique se as portas estão livres.', 'red');
@@ -202,7 +199,6 @@ async function main() {
     log('', 'reset');
     log('✅ Sistema iniciado com sucesso!', 'green');
     log('📊 Acesse o painel em: http://localhost:8080', 'bright');
-    log('🔌 API disponível em: http://localhost:3001', 'bright');
     log('', 'reset');
     log('💡 Pressione Ctrl+C para encerrar todos os serviços', 'yellow');
   } catch (err) {

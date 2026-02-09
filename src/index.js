@@ -100,6 +100,17 @@ async function startServer() {
     const publicRoutes = require('./routes/public.routes');
     app.use('/public', publicRoutes);
     console.log('✅ Rotas públicas carregadas com sucesso!');
+
+    // Servir Frontend (SPA)
+    // Em produção/Discloud, o backend serve os arquivos estáticos do frontend
+    const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
+    app.use(express.static(frontendBuildPath));
+    
+    // Qualquer rota não tratada pela API ou arquivos estáticos cai no index.html (React Router)
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    });
+    console.log('✅ Frontend servido em /*');
     
     // Iniciar servidor
     app.listen(PORT, '0.0.0.0', () => {

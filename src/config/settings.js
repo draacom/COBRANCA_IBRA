@@ -5,7 +5,7 @@
 const settings = {
   // Ambiente
   env: process.env.NODE_ENV || 'development',
-  port: process.env.PORT || 3001,
+  port: process.env.PORT || 8080,
 
   // Banco de Dados
   database: {
