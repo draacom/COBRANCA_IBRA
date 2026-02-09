@@ -5,7 +5,7 @@
 const settings = {
   // Ambiente
   env: process.env.NODE_ENV || 'development',
-  port: process.env.PORT || 8080,
+  port: process.env.PORT || 3001,
 
   // Banco de Dados
   database: {
@@ -39,7 +39,7 @@ const settings = {
     
     // Evolution API
     evolution: {
-      url: process.env.WHATSAPP_API_URL || 'http://localhost:8080',
+      url: process.env.WHATSAPP_API_URL || 'http://localhost:8081',
       apiKey: process.env.WHATSAPP_API_KEY || '30fc8d3c-b9e5-483e-b0da-a0b6ec082f39',
       instanceName: process.env.WHATSAPP_INSTANCE_NAME || 'default'
     }

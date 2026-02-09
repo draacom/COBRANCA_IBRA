@@ -38,13 +38,16 @@ function sleep(ms) {
 }
 
 async function startBackend() {
-  const backendPort = process.env.PORT || 3001;
+  const backendPort = 3001;
   log('🚀 Iniciando Backend...', 'blue');
 
   const inUse = await isPortInUse(Number(backendPort));
   if (inUse) {
     log(`⚠️  Porta ${backendPort} já está em uso. Backend pode já estar rodando.`, 'yellow');
-    return null;
+    // Não retornamos null aqui para permitir tentar iniciar mesmo assim, 
+    // ou assumimos que devemos continuar. Mas o código original retornava null.
+    // Vamos manter o comportamento mas forçar a porta 3001 no spawn.
+    return null; 
   }
 
   const isWin = process.platform === 'win32';
@@ -54,7 +57,8 @@ async function startBackend() {
   const backend = spawn(cmd, args, {
     cwd: path.resolve(__dirname),
     stdio: ['pipe', 'pipe', 'pipe'],
-    shell: false
+    shell: false,
+    env: { ...process.env, PORT: '3001' }
   });
 
   backend.stdout.on('data', (d) => {
@@ -75,7 +79,7 @@ async function startBackend() {
 }
 
 async function startFrontend() {
-  const frontendPort = 3003;
+  const frontendPort = 8080;
   log('🎨 Iniciando Frontend...', 'cyan');
 
   const frontendPath = path.join(path.resolve(__dirname), 'frontend');
@@ -128,7 +132,7 @@ async function startFrontend() {
 }
 
 async function startEvolution() {
-  const evolutionPort = 8080;
+  const evolutionPort = 8081;
   log('🧬 Iniciando Evolution API...', 'magenta');
 
   const evolutionPath = path.join(path.resolve(__dirname), 'evolution-api-main');
@@ -150,7 +154,8 @@ async function startEvolution() {
   const evolution = spawn(cmd, args, {
     cwd: evolutionPath,
     stdio: ['pipe', 'pipe', 'pipe'],
-    shell: false
+    shell: false,
+    env: { ...process.env, PORT: '8081', SERVER_PORT: '8081' }
   });
 
   evolution.stdout.on('data', (d) => {
@@ -173,8 +178,8 @@ async function startEvolution() {
 async function main() {
   log('🔥 Iniciando Sistema de Cobrança...', 'bright');
   log('📋 Backend: http://localhost:3001', 'blue');
-  log('🌐 Frontend: http://localhost:3003', 'cyan');
-  log('🔗 Evolution API: http://localhost:8080', 'magenta');
+  log('🌐 Frontend: http://localhost:8080', 'cyan');
+  log('🔗 Evolution API: http://localhost:8081', 'magenta');
   log('', 'reset');
 
   const processes = [];
@@ -196,7 +201,7 @@ async function main() {
     await sleep(5000);
     log('', 'reset');
     log('✅ Sistema iniciado com sucesso!', 'green');
-    log('📊 Acesse o painel em: http://localhost:3003', 'bright');
+    log('📊 Acesse o painel em: http://localhost:8080', 'bright');
     log('🔌 API disponível em: http://localhost:3001', 'bright');
     log('', 'reset');
     log('💡 Pressione Ctrl+C para encerrar todos os serviços', 'yellow');
