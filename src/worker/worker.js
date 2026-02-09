@@ -4,8 +4,9 @@ const IORedis = require('ioredis');
 const db = require('../models');
 const safe2payClient = require('../services/safe2pay_client');
 const notifier = require('../services/notifier');
+const settings = require('../config/settings');
 
-const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379');
+const connection = new IORedis(settings.redis.url);
 
 const worker = new Worker('billing', async job => {
   console.log(`Processando job: ${job.name}, ID: ${job.id}`);

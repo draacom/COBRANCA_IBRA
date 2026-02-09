@@ -4,6 +4,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 // const qrcode = require('qrcode-terminal'); // Desativado para não poluir o console
 const fs = require('fs');
 const path = require('path');
+const settings = require('../config/settings');
 
 function payment_link_fromDetails(details) {
   if (!details) return null;
@@ -28,18 +29,18 @@ class Notifier {
     console.log('🚀 Inicializando Notifier...');
     // Configurar cliente de email com DKIM opcional
     const baseTransport = {
-      host: process.env.EMAIL_HOST,
-      port: Number(process.env.EMAIL_PORT || 587),
-      secure: String(process.env.EMAIL_PORT || '') === '465',
+      host: settings.email.host,
+      port: settings.email.port,
+      secure: String(settings.email.port) === '465',
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        user: settings.email.user,
+        pass: settings.email.pass
       }
     };
 
-    const dkimDomain = process.env.EMAIL_DKIM_DOMAIN || process.env.EMAIL_FROM?.split('@')[1];
-    const dkimSelector = process.env.EMAIL_DKIM_SELECTOR;
-    const dkimKey = (process.env.EMAIL_DKIM_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+    const dkimDomain = settings.email.dkim.domain || settings.email.from?.split('@')[1];
+    const dkimSelector = settings.email.dkim.selector;
+    const dkimKey = (settings.email.dkim.privateKey || '').replace(/\\n/g, '\n');
 
     this.emailTransporter = nodemailer.createTransport({
       ...baseTransport,
@@ -62,8 +63,8 @@ class Notifier {
     this.whatsappInfo = null;
     this.currentSessionId = 'sistema-cobranca-v2'; // ID da sessão atual
 
-    const whatsappWebEnabled = (process.env.WHATSAPP_WEB_ENABLED || '').toLowerCase() === 'true';
-    const whatsappProvider = process.env.WHATSAPP_PROVIDER || 'whatsapp-web';
+    const whatsappWebEnabled = settings.whatsapp.webEnabled;
+    const whatsappProvider = settings.whatsapp.provider;
 
     if (whatsappWebEnabled && whatsappProvider !== 'evolution') {
       console.log('📱 Iniciando WhatsApp Web.js...');
@@ -90,9 +91,9 @@ class Notifier {
 
   // Helper para verificar status da Evolution API
   async checkEvolutionStatus() {
-    const apiUrl = process.env.WHATSAPP_API_URL;
-    const apiKey = process.env.WHATSAPP_API_KEY;
-    const instanceName = process.env.WHATSAPP_INSTANCE_NAME || 'default';
+    const apiUrl = settings.whatsapp.evolution.url;
+    const apiKey = settings.whatsapp.evolution.apiKey;
+    const instanceName = settings.whatsapp.evolution.instanceName;
 
     if (!apiUrl || !apiKey) return null;
 
@@ -888,7 +889,7 @@ Qualquer dúvida, estamos à disposição.
       // Enviar WhatsApp se solicitado
       if (sendWhatsApp) {
         console.log('📱 Enviando WhatsApp...');
-        if (process.env.WHATSAPP_ENABLED === 'true') {
+        if (settings.whatsapp.enabled) {
           // Enviar via API externa configurada
           const whatsappData = await this.sendWhatsAppMessage(invoice, client);
           results.whatsapp = { 

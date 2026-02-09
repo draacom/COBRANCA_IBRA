@@ -1,4 +1,3 @@
-require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env') });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -6,6 +5,7 @@ const morgan = require('morgan');
 const path = require('path');
 const { sequelize } = require('./models');
 const notifier = require('./services/notifier');
+const settings = require('./config/settings');
 
 // Global error handlers para evitar crash por erros não tratados (ex: Puppeteer/WhatsApp)
 process.on('uncaughtException', (err) => {
@@ -23,7 +23,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = settings.port;
 
 // View engine setup
 app.set('view engine', 'ejs');
@@ -81,7 +81,7 @@ async function startServer() {
     console.log('✅ Conexão com banco de dados estabelecida com sucesso!');
     
     // Sincronizar modelos apenas em desenvolvimento
-    if (process.env.NODE_ENV === 'development') {
+    if (settings.env === 'development') {
       await sequelize.sync({ alter: false });
       console.log('🔄 Modelos sincronizados com sucesso!');
     }

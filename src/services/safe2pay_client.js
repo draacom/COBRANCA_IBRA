@@ -1,19 +1,20 @@
 const axios = require('axios');
+const settings = require('../config/settings');
 
 class Safe2PayClient {
   constructor() {
-    this.baseUrl = process.env.SAFE2PAY_API_URL || 'https://payment.safe2pay.com.br/v2';
-    this.apiKey = process.env.SAFE2PAY_API_KEY;
-    this.secretKey = process.env.SAFE2PAY_SECRET_KEY;
-    this.isSandbox = process.env.SAFE2PAY_SANDBOX === 'true';
+    this.baseUrl = settings.safe2pay.apiUrl;
+    this.apiKey = settings.safe2pay.apiKey;
+    this.secretKey = settings.safe2pay.secretKey;
+    this.isSandbox = settings.safe2pay.isSandbox;
     // Se não houver callback explícito, derive de PUBLIC_BASE_URL
-    const publicBase = process.env.PUBLIC_BASE_URL || process.env.BASE_URL || null;
-    this.callbackUrl = process.env.SAFE2PAY_CALLBACK_URL || (publicBase ? `${publicBase.replace(/\/$/, '')}/api/webhooks/safe2pay` : null);
-    this.pixMethodId = parseInt(process.env.SAFE2PAY_PIX_METHOD_ID || '6', 10);
-    this.boletoMethodId = parseInt(process.env.SAFE2PAY_BOLETO_METHOD_ID || '1', 10);
+    const publicBase = settings.urls.publicBase || settings.urls.base || null;
+    this.callbackUrl = settings.safe2pay.callbackUrl || (publicBase ? `${publicBase.replace(/\/$/, '')}/api/webhooks/safe2pay` : null);
+    this.pixMethodId = settings.safe2pay.methods.pix;
+    this.boletoMethodId = settings.safe2pay.methods.boleto;
     // Defaults ajustados: multa 1% e juros 2%
-    this.boletoFinePercent = parseFloat(process.env.SAFE2PAY_BOLETO_FINE_PERCENT || '1');
-    this.boletoInterestMonthlyPercent = parseFloat(process.env.SAFE2PAY_BOLETO_INTEREST_MONTHLY_PERCENT || '2');
+    this.boletoFinePercent = settings.safe2pay.fees.boletoFine;
+    this.boletoInterestMonthlyPercent = settings.safe2pay.fees.boletoInterest;
     
     if (!this.apiKey || !this.secretKey) {
       throw new Error('Safe2Pay API credentials not configured');

@@ -1,12 +1,12 @@
-require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env') });
+const settings = require('./settings');
 
 const resolveDb = () => ({
-  username: process.env.DEST_USER || process.env.DB_USER,
-  password: process.env.DEST_PASS || process.env.DB_PASS,
-  database: process.env.DEST_NAME || process.env.DB_NAME,
-  host: process.env.DEST_HOST || process.env.DB_HOST,
-  port: process.env.DEST_PORT || process.env.DB_PORT,
-  dialect: process.env.DB_DIALECT || 'mysql'
+  username: settings.database.username,
+  password: settings.database.password,
+  database: settings.database.name,
+  host: settings.database.host,
+  port: settings.database.port,
+  dialect: settings.database.dialect
 });
 
 module.exports = {
@@ -25,7 +25,7 @@ module.exports = {
   },
   test: {
     ...resolveDb(),
-    database: process.env.DB_NAME_TEST || 'cobranca_test',
+    database: settings.database.testName,
     logging: false
   },
   production: {

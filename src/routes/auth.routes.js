@@ -1,6 +1,8 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const { User } = require('../models');
+const settings = require('../config/settings');
 
 const router = express.Router();
 
@@ -55,10 +57,11 @@ router.post('/register', async (req, res) => {
       status: 'ativo'
     });
     
+    // Gerar token JWT
     const token = jwt.sign(
       { id: user.id, email: user.email, status: user.status, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      settings.jwt.secret,
+      { expiresIn: settings.jwt.expiresIn }
     );
     
     return res.status(201).json({
@@ -135,10 +138,11 @@ router.post('/login', async (req, res) => {
       });
     }
     
+    // Gerar token JWT
     const token = jwt.sign(
       { id: user.id, email: user.email, status: user.status, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      settings.jwt.secret,
+      { expiresIn: settings.jwt.expiresIn }
     );
     
     return res.status(200).json({
@@ -175,7 +179,7 @@ router.post('/refresh', async (req, res) => {
       });
     }
     
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, settings.jwt.secret);
     const user = await User.findByPk(decoded.id);
     
     if (!user || user.status !== 'ativo') {
@@ -185,10 +189,11 @@ router.post('/refresh', async (req, res) => {
       });
     }
     
+    // Gerar token JWT
     const newToken = jwt.sign(
       { id: user.id, email: user.email, status: user.status, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      settings.jwt.secret,
+      { expiresIn: settings.jwt.expiresIn }
     );
     
     return res.status(200).json({
