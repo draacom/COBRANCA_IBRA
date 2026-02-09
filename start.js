@@ -183,7 +183,6 @@ async function startEvolution() {
       });
 
       log('🔨 Compilando Evolution API...', 'blue');
-      const isWin = process.platform === 'win32';
       const buildCmd = isWin ? 'cmd.exe' : 'npm';
       const buildArgs = isWin ? ['/c', 'npm', 'run', 'build'] : ['run', 'build'];
       
