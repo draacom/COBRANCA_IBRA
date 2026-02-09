@@ -144,9 +144,14 @@ async function startEvolution() {
     log('⚠️  Build da Evolution API não encontrado. Tentando compilar...', 'yellow');
     
     try {
-      // Verificar se node_modules existe, se não, instalar
-      if (!fs.existsSync(path.join(evolutionPath, 'node_modules'))) {
-        log('📦 Instalando dependências da Evolution API...', 'blue');
+      // Verificar se node_modules existe e se o tsup está presente
+      const nodeModulesPath = path.join(evolutionPath, 'node_modules');
+      const tsupPath = path.join(nodeModulesPath, '.bin', process.platform === 'win32' ? 'tsup.cmd' : 'tsup');
+      const hasModules = fs.existsSync(nodeModulesPath);
+      const hasTsup = fs.existsSync(tsupPath);
+
+      if (!hasModules || !hasTsup) {
+        log(hasModules ? '⚠️  Dependências incompletas (tsup hiante). Reinstalando...' : '📦 Instalando dependências da Evolution API...', 'blue');
         const isWin = process.platform === 'win32';
         const installCmd = isWin ? 'cmd.exe' : 'npm';
         const installArgs = isWin ? ['/c', 'npm', 'install'] : ['install'];
