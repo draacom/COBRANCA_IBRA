@@ -167,6 +167,21 @@ async function startEvolution() {
         });
       }
 
+      log('🔧 Gerando cliente Prisma...', 'blue');
+      const isWin = process.platform === 'win32';
+      const genCmd = isWin ? 'cmd.exe' : 'npm';
+      const genArgs = isWin ? ['/c', 'npm', 'run', 'db:generate'] : ['run', 'db:generate'];
+      
+      await new Promise((resolve, reject) => {
+        const gen = spawn(genCmd, genArgs, {
+          cwd: evolutionPath,
+          stdio: 'inherit',
+          shell: false
+        });
+        gen.on('close', code => code === 0 ? resolve() : reject(new Error(`Prisma generate failed: ${code}`)));
+        gen.on('error', reject);
+      });
+
       log('🔨 Compilando Evolution API...', 'blue');
       const isWin = process.platform === 'win32';
       const buildCmd = isWin ? 'cmd.exe' : 'npm';
