@@ -155,14 +155,18 @@ const WhatsAppBulk = () => {
         formData.append('media', mediaFile);
       }
 
-      const response = await api.post('/whatsapp/send-bulk', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post('/whatsapp/send-bulk', formData);
 
-      setResults(response.data.data);
-      setSuccessMessage(`Mensagens processadas: ${response.data.data.summary.success} enviadas, ${response.data.data.summary.errors} com erro`);
+      const data = response?.data?.data || {};
+      const resultsData = Array.isArray(data.results) ? data.results : [];
+      const summaryData = data.summary || {
+        total: resultsData.length,
+        success: resultsData.filter(r => r?.status === 'success').length,
+        errors: resultsData.filter(r => r?.status === 'error').length
+      };
+
+      setResults({ summary: summaryData, results: resultsData });
+      setSuccessMessage(`Mensagens processadas: ${summaryData.success} enviadas, ${summaryData.errors} com erro`);
       setSuccessOpen(true);
       
       // Limpar seleção após envio
@@ -172,7 +176,8 @@ const WhatsAppBulk = () => {
 
     } catch (error) {
       console.error('Erro ao enviar mensagens:', error);
-      setError(error.response?.data?.message || 'Erro ao enviar mensagens');
+      const serverMsg = error?.response?.data?.message;
+      setError(serverMsg || 'Erro ao enviar mensagens');
     } finally {
       setSending(false);
     }

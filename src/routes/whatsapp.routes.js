@@ -5,6 +5,58 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+const sanitizeObject = (value) => {
+  if (!value || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(sanitizeObject);
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (String(k).toLowerCase().includes('apikey')) {
+      out[k] = '[redacted]';
+    } else {
+      out[k] = sanitizeObject(v);
+    }
+  }
+  return out;
+};
+
+const safeStringify = (value) => {
+  try {
+    if (typeof value === 'string') return value;
+    return JSON.stringify(value);
+  } catch (e) {
+    try {
+      return String(value);
+    } catch (e2) {
+      return 'Erro desconhecido';
+    }
+  }
+};
+
+const formatBulkSendError = (err) => {
+  if (!err) return 'Erro desconhecido';
+  if (typeof err === 'string') return err;
+
+  const status = err.response?.status;
+  const data = err.response?.data;
+  const dataMsg =
+    (data && typeof data === 'object' && (data.message || data.error)) ||
+    (typeof data === 'string' ? data : null);
+  const base = err.message || err.msg || err.error || dataMsg;
+
+  const details =
+    data && typeof data === 'object'
+      ? safeStringify(sanitizeObject(data))
+      : (typeof data === 'string' ? data : null);
+
+  if (status && base && details && details !== base) return `${status} - ${base} - ${details}`;
+  if (status && base) return `${status} - ${base}`;
+  if (status && details) return `${status} - ${details}`;
+  if (base) return base;
+  if (details) return details;
+
+  return safeStringify(sanitizeObject(err));
+};
+
 // Configuração do multer para upload de arquivos
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -42,6 +94,15 @@ const upload = multer({
       cb(new Error('Tipo de arquivo não suportado'));
     }
   }
+});
+
+router.use((req, res, next) => {
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'no-store');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
+  next();
 });
 
 // Rota para verificar status da conexão WhatsApp (compatibilidade)
@@ -259,12 +320,15 @@ router.post('/send-bulk', upload.single('media'), async (req, res) => {
 
         // Enviar mensagem via WhatsApp
         const result = await notifier.sendBulkWhatsAppMessage(client.phone, personalizedMessage, mediaFile);
+        const failureReason = result?.reason || (result?.error ? formatBulkSendError(result.error) : null);
         
         results.push({
           clientId: client.id,
           clientName: client.name,
           status: result.success ? 'success' : 'error',
-          message: result.success ? (mediaFile ? 'Mídia enviada com sucesso' : 'Mensagem enviada com sucesso') : 'Falha ao enviar mensagem',
+          message: result.success
+            ? (mediaFile ? 'Mídia enviada com sucesso' : 'Mensagem enviada com sucesso')
+            : (failureReason ? `Falha ao enviar mensagem: ${failureReason}` : 'Falha ao enviar mensagem'),
           messageId: result.messageId
         });
 
@@ -273,11 +337,12 @@ router.post('/send-bulk', upload.single('media'), async (req, res) => {
         
       } catch (error) {
         console.error(`Error sending message to client ${client.id}:`, error);
+        const errMsg = formatBulkSendError(error);
         results.push({
           clientId: client.id,
           clientName: client.name,
           status: 'error',
-          message: 'Erro interno ao enviar mensagem'
+          message: `Erro ao enviar mensagem: ${errMsg}`
         });
       }
     }

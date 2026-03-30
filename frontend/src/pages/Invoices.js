@@ -269,8 +269,19 @@ const Invoices = () => {
       const response = await api.post(`/invoices/${id}/send`, { channels });
       console.log('✅ Resposta da API:', response.data);
       
-      setSuccessMessage(`Notificação por ${type === 'email' ? 'email' : 'WhatsApp'} enviada com sucesso!`);
-      setSuccessOpen(true);
+      const notifications = response.data?.data?.notifications;
+      const channel = type === 'email' ? 'email' : 'whatsapp';
+      const notif = Array.isArray(notifications) ? notifications.find(n => n.channel === channel) : null;
+
+      if (!notif) {
+        alert('A API não retornou o resultado do envio. Verifique os logs do backend.');
+      } else if (notif.status !== 'sent') {
+        const err = notif.error || 'Falha no envio.';
+        alert(err);
+      } else {
+        setSuccessMessage(`Notificação por ${type === 'email' ? 'email' : 'WhatsApp'} enviada com sucesso!`);
+        setSuccessOpen(true);
+      }
       
       // Recarregar a lista de faturas para atualizar o status
       fetchData();
@@ -345,8 +356,30 @@ const Invoices = () => {
         payment_method: formData.payment_method,
         title: formData.title || undefined
       };
-      await api.post('/invoices/ad_hoc', payload);
-      setSuccessMessage('Cobrança avulsa criada e enviada com sucesso!');
+      const response = await api.post('/invoices/ad_hoc', payload);
+      const notifications = response.data?.data?.notifications;
+      const emailNotif = Array.isArray(notifications) ? notifications.find(n => n.channel === 'email') : null;
+      const whatsappNotif = Array.isArray(notifications) ? notifications.find(n => n.channel === 'whatsapp') : null;
+
+      const sentEmail = emailNotif?.status === 'sent';
+      const sentWhatsApp = whatsappNotif?.status === 'sent';
+
+      if (!emailNotif && !whatsappNotif) {
+        alert('Cobrança criada, mas a API não retornou o resultado do envio. Verifique os logs do backend.');
+      } else if (!sentEmail && !sentWhatsApp) {
+        const err = emailNotif?.error || whatsappNotif?.error || 'Falha ao enviar notificações.';
+        alert(err);
+      } else if (!sentEmail || !sentWhatsApp) {
+        const parts = [];
+        if (sentEmail) parts.push('email');
+        if (sentWhatsApp) parts.push('WhatsApp');
+        const failedParts = [];
+        if (!sentEmail) failedParts.push(`email: ${emailNotif?.error || 'falhou'}`);
+        if (!sentWhatsApp) failedParts.push(`WhatsApp: ${whatsappNotif?.error || 'falhou'}`);
+        alert(`Cobrança criada. Enviado por ${parts.join(' e ')}. Falhas: ${failedParts.join(' | ')}`);
+      }
+
+      setSuccessMessage('Cobrança avulsa criada!');
       setSuccessOpen(true);
       setShowForm(false);
       setFormData({ client_id: '', amount: '', due_date: '', payment_method: 'boleto', title: '' });

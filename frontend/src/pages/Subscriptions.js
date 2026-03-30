@@ -658,7 +658,7 @@ const Subscriptions = () => {
                           {subscription.client?.name && subscription.client.name.trim() !== '' ? subscription.client.name : subscription.client?.email || 'Cliente não encontrado'}
                         </div>
                         <div className="mt-1 text-xs text-gray-500">Método: {subscription.method === 'boleto' ? 'Boleto' : 'PIX'}</div>
-                        <div className="mt-1 text-xs text-gray-500">Dia de cobrança: {subscription.billing_day}</div>
+                        <div className="mt-1 text-xs text-gray-500">Dia ddo vencimento: {subscription.billing_day}</div>
                         <div className="mt-1 text-xs text-gray-500">Próxima cobrança: {formatDate(subscription.next_billing_date)}</div>
                         <div className="mt-1 text-xs text-gray-500">Dia de envio: {subscription.send_day || '-'}</div>
                         <div className="mt-1 text-xs text-gray-500">Próximo envio: {formatDate(subscription.next_send_date)}</div>

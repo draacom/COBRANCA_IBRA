@@ -104,6 +104,8 @@ class Notifier {
       });
 
       const data = response.data;
+      console.log('📊 Resposta Bruta checkEvolutionStatus:', JSON.stringify(data)); // DEBUG
+
       const state = data?.instance?.state || data?.state;
       
       // Mapear estados da Evolution para estados internos
@@ -314,23 +316,131 @@ class Notifier {
     }
   }
 
+  // Helper para deletar instância na Evolution API
+  async deleteEvolutionInstance(instanceName, apiKey, apiUrl) {
+    try {
+        console.log(`🧹 Deletando instância Evolution: ${instanceName}`);
+        await axios.delete(`${apiUrl}/instance/delete/${instanceName}`, {
+            headers: { 'apikey': apiKey }
+        });
+        console.log('🗑️ Instância deletada com sucesso.');
+        await new Promise(r => setTimeout(r, 2000)); // Delay para garantir limpeza
+        return true;
+    } catch (delErr) {
+        console.error('⚠️ Erro ao deletar instância (pode não existir):', delErr.message);
+        if (delErr.response) console.error('Dados do erro delete:', delErr.response.data);
+        return false;
+    }
+  }
+
+  // Helper para criar instância na Evolution API
+  async createEvolutionInstance(instanceName, apiKey, apiUrl) {
+    try {
+      console.log(`🔨 Criando instância Evolution: ${instanceName}`);
+      const createResponse = await axios.post(`${apiUrl}/instance/create`, {
+        instanceName: instanceName,
+        qrcode: false,
+        integration: 'WHATSAPP-BAILEYS',
+        rejectCall: false,
+        groupsIgnore: true,
+        alwaysOnline: true,
+        readMessages: true,
+        readStatus: false
+      }, {
+        headers: { 'apikey': apiKey }
+      });
+      console.log('✅ Instância criada com sucesso:', createResponse.data);
+      return true;
+    } catch (createError) {
+      if (createError.response && createError.response.status === 403) {
+        console.log('⚠️ Instância já existe (403), ignorando erro de criação...');
+        return true;
+      }
+      console.error('❌ Falha ao criar instância:', createError.message);
+      if (createError.response) console.error('Dados do erro criação:', createError.response.data);
+      return false;
+    }
+  }
+
   // Método para obter QR code como string base64
   async getWhatsAppQRCode() {
     const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
-      const apiUrl = process.env.WHATSAPP_API_URL;
-      const apiKey = process.env.WHATSAPP_API_KEY;
-      const instanceName = process.env.WHATSAPP_INSTANCE_NAME || 'default';
+      const apiUrl = settings.whatsapp.evolution.url;
+      const apiKey = settings.whatsapp.evolution.apiKey;
+      const instanceName = settings.whatsapp.evolution.instanceName;
 
-      if (!apiUrl || !apiKey) return null;
+      if (!apiUrl || !apiKey) {
+        console.error('❌ Configuração da Evolution API incompleta para QR Code');
+        return null;
+      }
 
+      // 1. Verificar status da instância antes de pedir QR
+      let state = null;
+      let statusData = null;
       try {
+        statusData = await this.checkEvolutionStatus();
+        state = statusData?.instance?.state || statusData?.state;
+        console.log(`📊 Estado atual da instância para QR: ${state || 'Não detectado'}`);
+      } catch (e) {
+        console.error('Erro ao verificar status pré-QR:', e.message);
+      }
+
+      // 2. Se não existe ou erro, tenta criar
+      if (!state) {
+        console.log('⚠️ Instância não detectada ou com estado inválido. Tentando recuperar...');
+        
+        // Se a API retornou que a instância existe (tem nome) mas não tem state, ela pode estar corrompida.
+        // Vamos tentar deletar para recriar limpo.
+        if (statusData?.instance?.instanceName) {
+            console.log('🧹 Instância Zumbi detectada (sem estado). Deletando para recriar...');
+            await this.deleteEvolutionInstance(instanceName, apiKey, apiUrl);
+        }
+
+        const created = await this.createEvolutionInstance(instanceName, apiKey, apiUrl);
+        if (!created) return null;
+        // Pequeno delay para a instância inicializar
+        await new Promise(r => setTimeout(r, 3000));
+        return null; // Força novo polling
+      } else if (state === 'open') {
+        console.log('✅ Instância já está conectada (open). QR Code desnecessário.');
+        return null;
+      }
+
+      // 3. Tentar obter QR Code (connect)
+      try {
+        console.log(`🔍 Buscando QR Code na Evolution API: ${apiUrl}/instance/connect/${instanceName}`);
         const response = await axios.get(`${apiUrl}/instance/connect/${instanceName}`, {
           headers: { 'apikey': apiKey }
         });
 
         const data = response.data;
+        
+        // Verificar se a API retornou erro lógico (200 OK mas com body de erro)
+        // Isso acontece quando a instância está corrompida: { error: true, message: "[object Object]" }
+        if (data && data.error) {
+            console.error('❌ Evolution API retornou erro lógico:', JSON.stringify(data, null, 2));
+            
+            const msg = JSON.stringify(data.message);
+            // Se o erro for genérico ou "object Object", é sinal de corrupção ou falha interna do driver
+            if (msg.includes('object Object') || data.message === '[object Object]') {
+                console.log('🔥 Erro crítico na instância (corrompida?). Iniciando protocolo de auto-cura...');
+                await this.deleteEvolutionInstance(instanceName, apiKey, apiUrl);
+                await this.createEvolutionInstance(instanceName, apiKey, apiUrl);
+                return null; // Frontend fará retry e pegará a nova instância limpa
+            }
+
+            // Se o erro for "Instance already connected", podemos considerar como conectado
+            if (msg.includes('already connected') || msg.includes('connected')) {
+                 console.log('⚠️ Instância já conectada (detectado via erro).');
+                 return null;
+            }
+            return null;
+        }
+
+        console.log('📦 Resposta Evolution QR:', JSON.stringify(data).substring(0, 200) + '...');
+
         // Evolution pode retornar base64 diretamente ou dentro de um objeto
         let base64 = data?.base64 || data?.qrcode?.base64;
         
@@ -338,35 +448,24 @@ class Notifier {
           base64 = `data:image/png;base64,${base64}`;
         }
         
+        if (base64) console.log('✅ QR Code obtido com sucesso!');
+        else console.log('⚠️ QR Code não encontrado na resposta.');
+
         return base64 || null;
       } catch (error) {
-        console.error('❌ Erro ao obter QR code da Evolution API:', error.message);
-        
-        if (error.response && error.response.status === 404) {
-             console.log('⚠️ Instância não encontrada ao buscar QR, tentando criar...');
-             try {
-                 await axios.post(`${apiUrl}/instance/create`, {
-                     instanceName: instanceName,
-                     qrcode: false,
-                     integration: 'WHATSAPP-BAILEYS'
-                 }, {
-                     headers: { 'apikey': apiKey }
-                 });
-                 // Tentar buscar QR novamente após breve delay
-                 return null; // O frontend fará polling novamente
-             } catch (createError) {
-                 if (createError.response && createError.response.status === 403) {
-                      // Já existe, então vamos deixar o polling tentar conectar na proxima
-                      console.log('⚠️ Instância já existe (403), ignorando erro de criação...');
-                      return null;
-                 }
-                 console.error('❌ Falha ao criar instância (recuperação):', createError.message);
-             }
+        console.error(`❌ Erro ao obter QR code da Evolution API (${apiUrl}):`, error.message);
+        if (error.response) {
+            console.error('Dados do erro:', error.response.data);
+            
+            // Se erro 404, tenta criar (fallback)
+            if (error.response.status === 404) {
+                 console.log('⚠️ Erro 404 no connect. Tentando criar instância...');
+                 await this.createEvolutionInstance(instanceName, apiKey, apiUrl);
+                 return null; // Frontend fará retry
+            }
         }
-        
         return null;
       }
-      return null;
     }
 
     if (this.whatsappQR) {
@@ -425,9 +524,9 @@ class Notifier {
     const provider = settings.whatsapp.provider;
 
     if (provider === 'evolution') {
-      const apiUrl = process.env.WHATSAPP_API_URL;
-      const apiKey = process.env.WHATSAPP_API_KEY;
-      const instanceName = process.env.WHATSAPP_INSTANCE_NAME || 'default';
+      const apiUrl = settings.whatsapp.evolution.url;
+      const apiKey = settings.whatsapp.evolution.apiKey;
+      const instanceName = settings.whatsapp.evolution.instanceName;
 
       if (!apiUrl || !apiKey) {
         return { success: false, message: 'API Evolution não configurada' };
@@ -448,53 +547,13 @@ class Notifier {
             // Se a instância não existir (404), tentar criar
             if (error.response.status === 404) {
                 console.log('⚠️ Instância não encontrada, tentando criar...');
-                try {
-                    await axios.post(`${apiUrl}/instance/create`, {
-                        instanceName: instanceName,
-                        qrcode: false,
-                        integration: 'WHATSAPP-BAILEYS',
-                        rejectCall: false,
-                        groupsIgnore: true,
-                        alwaysOnline: true,
-                        readMessages: true,
-                        readStatus: false
-                    }, {
-                        headers: { 'apikey': apiKey }
-                    });
+                
+                // Usar o mesmo helper robusto de criação
+                const created = await this.createEvolutionInstance(instanceName, apiKey, apiUrl);
+                
+                if (created) {
                     return { success: true, message: 'Instância criada com sucesso. Aguarde o QR Code.' };
-                } catch (createError) {
-                    // Se der erro 403 (já existe), pode ser uma instância zumbi
-                    if (createError.response && createError.response.status === 403) {
-                        console.log('⚠️ Instância já existe mas não foi encontrada (Zumbi). Tentando recriar...');
-                        try {
-                            // Tentar deletar e criar de novo
-                            await axios.delete(`${apiUrl}/instance/delete/${instanceName}`, {
-                                headers: { 'apikey': apiKey }
-                            });
-                            // Pequeno delay
-                            await new Promise(r => setTimeout(r, 1000));
-                            
-                            await axios.post(`${apiUrl}/instance/create`, {
-                                instanceName: instanceName,
-                                qrcode: false,
-                                integration: 'WHATSAPP-BAILEYS',
-                                rejectCall: false,
-                                groupsIgnore: true,
-                                alwaysOnline: true,
-                                readMessages: true,
-                                readStatus: false
-                            }, {
-                                headers: { 'apikey': apiKey }
-                            });
-                            return { success: true, message: 'Instância recriada com sucesso.' };
-                        } catch (recreateError) {
-                             console.error('❌ Falha ao recriar instância zumbi:', recreateError.message);
-                             return { success: false, message: 'Falha ao recuperar instância Evolution' };
-                        }
-                    }
-
-                    console.error('❌ Erro ao criar instância:', createError.message);
-                    if (createError.response) console.error('Dados do erro criação:', createError.response.data);
+                } else {
                     return { success: false, message: 'Falha ao criar instância Evolution' };
                 }
             }
@@ -537,7 +596,8 @@ class Notifier {
     // Se o cliente não foi passado, buscar do banco de dados
     const recipient = client || invoice.client;
     
-    if (!recipient || !recipient.email) {
+    const recipientEmail = String(recipient?.email || '').trim();
+    if (!recipient || !recipientEmail) {
       throw new Error('Email do cliente não disponível');
     }
 
@@ -563,14 +623,14 @@ class Notifier {
       ? `https://cobranca.ibrainformatica.com.br/invoice.php?id=${invoice.id}`
       : (payment_link_fromDetails(payment_details) || payment_url);
 
-    const displayFrom = process.env.EMAIL_FROM || 'naoresponda@ibrainformatica.com.br';
+    const displayFrom = String(settings.email.from || settings.email.user || '').trim() || 'cobranca@ibrainformatica.com.br';
     const mailOptions = {
       from: `Financeiro IBRA Soft <${displayFrom}>`,
-      to: recipient.email,
+      to: recipientEmail,
       subject: 'Sistema de cobrança IBRA',
       envelope: {
-        from: process.env.EMAIL_BOUNCE || displayFrom,
-        to: recipient.email
+        from: String(process.env.EMAIL_BOUNCE || displayFrom).trim() || displayFrom,
+        to: recipientEmail
       },
       html: `
 <html>
@@ -753,16 +813,21 @@ Qualquer dúvida, estamos à disposição.
 
   // Método específico para envio em massa
   async sendBulkWhatsAppMessage(phone, message, mediaFile = null) {
-    const provider = process.env.WHATSAPP_PROVIDER || 'whatsapp-web';
+    const provider = settings.whatsapp.provider || 'whatsapp-web';
 
     if (provider === 'evolution') {
       if (mediaFile) {
-        console.warn('⚠️ Envio de mídia em massa via Evolution API ainda não implementado totalmente. Tentando enviar apenas texto.');
+        return this.sendWhatsAppMediaViaEvolution(phone, message, mediaFile, {
+          apiUrl: settings.whatsapp.evolution?.url,
+          apiKey: settings.whatsapp.evolution?.apiKey,
+          instanceName: settings.whatsapp.evolution?.instanceName
+        });
       }
       return this.sendWhatsAppViaAPI(phone, message, {
         provider: 'evolution',
-        apiUrl: process.env.WHATSAPP_API_URL,
-        apiKey: process.env.WHATSAPP_API_KEY
+        apiUrl: settings.whatsapp.evolution?.url,
+        apiKey: settings.whatsapp.evolution?.apiKey,
+        instanceName: settings.whatsapp.evolution?.instanceName
       });
     }
 
@@ -849,14 +914,13 @@ Qualquer dúvida, estamos à disposição.
 *Setor Financeiro*
 *IBRA Informática / IBRA Soft*`;
 
-    // Verificar se o WhatsApp está habilitado
-    if (process.env.WHATSAPP_ENABLED === 'true') {
+    if (settings.whatsapp.enabled) {
       try {
-        // Enviar via API configurada
         const result = await this.sendWhatsAppViaAPI(recipient.phone, message, {
-          provider: process.env.WHATSAPP_PROVIDER || 'evolution',
-          apiUrl: process.env.WHATSAPP_API_URL,
-          apiKey: process.env.WHATSAPP_API_KEY
+          provider: settings.whatsapp.provider || 'evolution',
+          apiUrl: settings.whatsapp.evolution?.url,
+          apiKey: settings.whatsapp.evolution?.apiKey,
+          instanceName: settings.whatsapp.evolution?.instanceName
         });
         
         console.log('WhatsApp enviado com sucesso:', result);
@@ -866,7 +930,6 @@ Qualquer dúvida, estamos à disposição.
         throw error;
       }
     } else {
-      // Log para envio manual se não estiver habilitado
       console.log('WhatsApp preparado para envio manual:', { phone: recipient.phone, message });
       return {
         success: false,
@@ -887,34 +950,27 @@ Qualquer dúvida, estamos à disposição.
     const { sendEmail = true, sendWhatsApp = true } = options;
     const results = {};
 
-    try {
-      // Enviar email se solicitado
-      if (sendEmail) {
-        console.log('📧 Enviando email...');
-        await this.sendInvoiceEmail(invoice, client);
-        results.email = { success: true, message: 'Email enviado com sucesso' };
+    if (sendEmail) {
+      console.log('📧 Enviando email...');
+      try {
+        const emailResult = await this.sendInvoiceEmail(invoice, client);
+        results.email = { success: true, message: 'Email enviado com sucesso', data: emailResult };
+      } catch (error) {
+        results.email = { success: false, message: error?.message || 'Falha ao enviar email' };
       }
+    }
 
-      // Enviar WhatsApp se solicitado
-      if (sendWhatsApp) {
-        console.log('📱 Enviando WhatsApp...');
+    if (sendWhatsApp) {
+      console.log('📱 Enviando WhatsApp...');
+      try {
         if (settings.whatsapp.enabled) {
-          // Enviar via API externa configurada
           const whatsappData = await this.sendWhatsAppMessage(invoice, client);
-          results.whatsapp = { 
-            success: true, 
-            message: 'WhatsApp enviado via API',
-            data: whatsappData
-          };
+          const ok = whatsappData?.success === true;
+          results.whatsapp = { success: ok, message: ok ? 'WhatsApp enviado via API' : 'Falha ao enviar WhatsApp via API', data: whatsappData };
         } else {
-          // Tentar enviar diretamente via WhatsApp Web.js
           try {
             const whatsappDirect = await this.sendInvoiceWhatsApp(invoice, client);
-            results.whatsapp = {
-              success: true,
-              message: 'WhatsApp enviado via WhatsApp Web',
-              data: whatsappDirect
-            };
+            results.whatsapp = { success: true, message: 'WhatsApp enviado via WhatsApp Web', data: whatsappDirect };
           } catch (werr) {
             console.warn('⚠️ Falha no envio via WhatsApp Web, preparando mensagem manual:', werr?.message);
             const whatsappPrepared = await this.sendWhatsAppMessage(invoice, client);
@@ -925,14 +981,13 @@ Qualquer dúvida, estamos à disposição.
             };
           }
         }
+      } catch (error) {
+        results.whatsapp = { success: false, message: error?.message || 'Falha ao enviar WhatsApp' };
       }
-
-      console.log('✅ Notificações processadas:', results);
-      return results;
-    } catch (error) {
-      console.error('Erro ao enviar notificações:', error);
-      throw error;
     }
+
+    console.log('✅ Notificações processadas:', results);
+    return results;
   }
 
   // Método para integração com APIs externas de WhatsApp
@@ -989,10 +1044,39 @@ Qualquer dúvida, estamos à disposição.
       } else if (provider === 'evolution' && apiUrl && apiKey) {
         console.log(`Tentando enviar WhatsApp via Evolution API para ${cleanPhone}`);
         console.log(`URL da API: ${apiUrl}`);
-        console.log(`Instance: ${process.env.WHATSAPP_INSTANCE_NAME || 'default'}`);
+        const instance = apiConfig.instanceName || process.env.WHATSAPP_INSTANCE_NAME || 'default';
+        console.log(`Instance: ${instance}`);
         
         try {
-          const response = await axios.post(`${apiUrl}/message/sendText/${process.env.WHATSAPP_INSTANCE_NAME || 'default'}`, {
+          let existence = null;
+          try {
+            const check = await axios.post(`${apiUrl}/chat/whatsappNumbers/${instance}`, {
+              numbers: [cleanPhone]
+            }, {
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': apiKey
+              }
+            });
+
+            const row = Array.isArray(check.data) ? check.data[0] : null;
+            existence = row;
+
+            if (row && row.exists === false) {
+              return {
+                success: false,
+                provider: 'evolution',
+                phone: cleanPhone,
+                error: `O número ${cleanPhone} não está registrado no WhatsApp.`,
+                response: check.data
+              };
+            }
+          } catch (e) {
+            const data = e.response?.data;
+            console.log('⚠️ Não foi possível validar existência do número na Evolution:', data?.message || e.message);
+          }
+
+          const response = await axios.post(`${apiUrl}/message/sendText/${instance}`, {
             number: cleanPhone,
             text: message
           }, {
@@ -1004,23 +1088,41 @@ Qualquer dúvida, estamos à disposição.
 
           const responseData = response.data;
           
-          console.log(`✅ WhatsApp enviado com sucesso para ${cleanPhone}:`, responseData);
+          const messageId = responseData?.key?.id || null;
+          const remoteJid = responseData?.key?.remoteJid || null;
+
+          if (!messageId) {
+            console.log(`⚠️ Evolution aceitou a requisição, mas não retornou messageId.`, responseData);
+            return {
+              success: false,
+              provider: 'evolution',
+              phone: cleanPhone,
+              error: 'Evolution não retornou key.id (não foi possível confirmar envio)',
+              response: responseData
+            };
+          }
+
+          console.log(`✅ WhatsApp enviado com sucesso para ${cleanPhone}:`, { messageId, remoteJid });
           return { 
             success: true, 
             provider: 'evolution', 
             phone: cleanPhone, 
-            messageId: responseData.key?.id || null,
+            messageId,
+            remoteJid,
+            existence,
             response: responseData
           };
         } catch (error) {
           const responseData = error.response?.data || {};
-          console.error(`❌ Erro na Evolution API: ${error.response?.status} - ${responseData.message || error.message}`);
-          throw new Error(`Erro na Evolution API: ${error.response?.status} - ${responseData.message || error.message}`);
+          const status = error.response?.status;
+          const msg = responseData?.message ? JSON.stringify(responseData.message) : (responseData?.error || error.message);
+          console.error(`❌ Erro na Evolution API: ${status} - ${msg}`);
+          throw new Error(`Erro na Evolution API: ${status} - ${msg}`);
         }
       } else if (provider === 'twilio' && apiUrl && apiKey) {
         // Implementação para Twilio (exemplo)
         console.log('Twilio não implementado ainda. Usando modo manual.');
-        return { success: true, provider: 'manual', phone: cleanPhone, message };
+        return { success: false, provider: 'manual', phone: cleanPhone, message, reason: 'Twilio não implementado' };
       } else {
         // Modo manual ou configuração incompleta
         console.log('⚠️ WhatsApp configurado para envio manual ou configuração incompleta:', { 
@@ -1030,7 +1132,7 @@ Qualquer dúvida, estamos à disposição.
           hasApiKey: !!apiKey
         });
         return { 
-          success: true, 
+          success: false, 
           provider: 'manual', 
           phone: cleanPhone, 
           message,
@@ -1044,7 +1146,7 @@ Qualquer dúvida, estamos à disposição.
       if (error.message.includes('fetch') || error.message.includes('ECONNREFUSED') || error.message.includes('Failed to fetch')) {
         console.log('🔄 API Evolution não disponível, configurando para envio manual');
         return {
-          success: true,
+          success: false,
           provider: 'manual_fallback',
           phone: cleanPhone,
           message,
@@ -1060,6 +1162,128 @@ Qualquer dúvida, estamos à disposição.
         phone: cleanPhone,
         message
       };
+    }
+  }
+
+  async sendWhatsAppMediaViaEvolution(phone, caption, mediaFile, apiConfig = {}) {
+    const { apiUrl, apiKey } = apiConfig;
+    const instance = apiConfig.instanceName || process.env.WHATSAPP_INSTANCE_NAME || 'default';
+    if (!apiUrl || !apiKey) {
+      return {
+        success: false,
+        provider: 'evolution',
+        phone,
+        reason: 'Configuração incompleta da Evolution API'
+      };
+    }
+
+    let cleanPhone = String(phone || '').replace(/\D/g, '');
+    if (cleanPhone.length >= 10 && cleanPhone.length <= 11) {
+      if (!cleanPhone.startsWith('55')) {
+        cleanPhone = '55' + cleanPhone;
+      }
+    }
+    if (cleanPhone.length < 12) {
+      return {
+        success: false,
+        provider: 'evolution',
+        phone: cleanPhone,
+        reason: `Telefone inválido: ${phone} (formatado: ${cleanPhone})`
+      };
+    }
+
+    const mime = mediaFile?.mimetype || 'application/octet-stream';
+    const isImage = mime.startsWith('image/');
+    const isVideo = mime.startsWith('video/');
+    const isAudio = mime.startsWith('audio/');
+    const mediatype = isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'document';
+    const fileName = mediaFile?.originalname || mediaFile?.filename || `arquivo${path.extname(mediaFile?.path || '')}`;
+
+    let base64;
+    try {
+      base64 = fs.readFileSync(mediaFile.path).toString('base64');
+    } catch (e) {
+      return {
+        success: false,
+        provider: 'evolution',
+        phone: cleanPhone,
+        reason: `Não foi possível ler o arquivo de mídia: ${e?.message || 'erro'}`
+      };
+    }
+
+    try {
+      let existence = null;
+      try {
+        const check = await axios.post(`${apiUrl}/chat/whatsappNumbers/${instance}`, {
+          numbers: [cleanPhone]
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey
+          }
+        });
+
+        const row = Array.isArray(check.data) ? check.data[0] : null;
+        existence = row;
+
+        if (row && row.exists === false) {
+          return {
+            success: false,
+            provider: 'evolution',
+            phone: cleanPhone,
+            reason: `O número ${cleanPhone} não está registrado no WhatsApp.`,
+            response: check.data
+          };
+        }
+      } catch (e) {
+        const data = e.response?.data;
+        console.log('⚠️ Não foi possível validar existência do número na Evolution:', data?.message || e.message);
+      }
+
+      const payload = {
+        number: cleanPhone,
+        mediatype,
+        mimetype: mime,
+        caption: caption || '',
+        ...(mediatype === 'document' ? { fileName } : {}),
+        media: base64
+      };
+
+      const response = await axios.post(`${apiUrl}/message/sendMedia/${instance}`, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiKey
+        }
+      });
+
+      const responseData = response.data;
+      const messageId = responseData?.key?.id || null;
+      const remoteJid = responseData?.key?.remoteJid || null;
+
+      if (!messageId) {
+        return {
+          success: false,
+          provider: 'evolution',
+          phone: cleanPhone,
+          reason: 'Evolution não retornou key.id (não foi possível confirmar envio da mídia)',
+          response: responseData
+        };
+      }
+
+      return {
+        success: true,
+        provider: 'evolution',
+        phone: cleanPhone,
+        messageId,
+        remoteJid,
+        existence,
+        response: responseData
+      };
+    } catch (error) {
+      const responseData = error.response?.data || {};
+      const status = error.response?.status;
+      const msg = responseData?.message ? JSON.stringify(responseData.message) : (responseData?.error || error.message);
+      throw new Error(`Erro na Evolution API (mídia): ${status} - ${msg}`);
     }
   }
 
