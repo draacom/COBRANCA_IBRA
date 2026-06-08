@@ -113,6 +113,75 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Atualizar assinaturas em massa (validade/vencimento e envio)
+router.put('/bulk-update', async (req, res) => {
+  try {
+    const { ids, billing_day, send_day } = req.body || {};
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Informe uma lista de IDs de assinaturas para atualizar'
+      });
+    }
+
+    const updateData = { atualizado_em: new Date() };
+
+    if (billing_day !== undefined) {
+      const parsedBilling = Number.parseInt(billing_day, 10);
+      if (!Number.isFinite(parsedBilling) || parsedBilling < 1 || parsedBilling > 28) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'billing_day inválido (1-28)'
+        });
+      }
+      updateData.vencimento_dia = parsedBilling;
+    }
+
+    if (send_day !== undefined) {
+      if (send_day === null) {
+        updateData.envio_dia = null;
+      } else {
+        const parsedSend = Number.parseInt(send_day, 10);
+        if (!Number.isFinite(parsedSend) || parsedSend < 1 || parsedSend > 28) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'send_day inválido (1-28) ou null para limpar'
+          });
+        }
+        updateData.envio_dia = parsedSend;
+      }
+    }
+
+    const hasAnyField = Object.prototype.hasOwnProperty.call(updateData, 'vencimento_dia') ||
+      Object.prototype.hasOwnProperty.call(updateData, 'envio_dia');
+
+    if (!hasAnyField) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Informe billing_day e/ou send_day para atualizar'
+      });
+    }
+
+    const [updatedCount] = await Subscription.update(updateData, {
+      where: { id: { [Op.in]: ids } }
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        updated: updatedCount
+      }
+    });
+  } catch (error) {
+    console.error('Error bulk updating subscriptions:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Erro ao atualizar assinaturas em massa'
+    });
+  }
+});
+
 // Atualizar assinatura
 router.put('/:id', async (req, res) => {
   try {

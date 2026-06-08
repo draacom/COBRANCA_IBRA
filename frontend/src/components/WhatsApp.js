@@ -72,9 +72,7 @@ const WhatsApp = () => {
     // Atualizar status a cada 10 segundos
     const interval = setInterval(() => {
       fetchWhatsAppStatus();
-      if (status && !status.ready) {
-        fetchQRCode();
-      }
+      fetchQRCode();
     }, 10000);
 
     return () => clearInterval(interval);

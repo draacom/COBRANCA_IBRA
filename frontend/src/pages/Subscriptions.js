@@ -45,6 +45,14 @@ const Subscriptions = () => {
     method: ''
   });
 
+  const [selectedSubscriptionIds, setSelectedSubscriptionIds] = useState([]);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkEditData, setBulkEditData] = useState({
+    billing_day: '',
+    send_day: '',
+    clear_send_day: false
+  });
+
   useEffect(() => {
     fetchData();
     fetchClients();
@@ -195,6 +203,11 @@ const Subscriptions = () => {
       return 0;
     });
 
+  const filteredIds = filteredAndSortedSubscriptions.map((s) => s.id);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedSubscriptionIds.includes(id));
+  const selectedCount = selectedSubscriptionIds.length;
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -203,6 +216,81 @@ const Subscriptions = () => {
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters({ ...filters, [name]: value });
+  };
+
+  const isSubscriptionSelected = (id) => selectedSubscriptionIds.includes(id);
+
+  const toggleSubscriptionSelection = (id) => {
+    setSelectedSubscriptionIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const setSelectionForFiltered = (checked) => {
+    const filteredIds = filteredAndSortedSubscriptions.map((s) => s.id);
+    setSelectedSubscriptionIds((prev) => {
+      const set = new Set(prev);
+      if (checked) {
+        filteredIds.forEach((id) => set.add(id));
+      } else {
+        filteredIds.forEach((id) => set.delete(id));
+      }
+      return Array.from(set);
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedSubscriptionIds([]);
+    setBulkEditOpen(false);
+    setBulkEditData({ billing_day: '', send_day: '', clear_send_day: false });
+  };
+
+  const handleBulkEditChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setBulkEditData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const applyBulkEdit = async () => {
+    setError('');
+
+    if (selectedSubscriptionIds.length === 0) {
+      setError('Selecione pelo menos uma assinatura para alterar em massa.');
+      return;
+    }
+
+    const billingDay =
+      bulkEditData.billing_day !== '' ? Number.parseInt(bulkEditData.billing_day, 10) : undefined;
+    const sendDay =
+      bulkEditData.clear_send_day === true
+        ? null
+        : bulkEditData.send_day !== ''
+          ? Number.parseInt(bulkEditData.send_day, 10)
+          : undefined;
+
+    const hasAnyChange = billingDay !== undefined || sendDay !== undefined;
+    if (!hasAnyChange) {
+      setError('Informe o dia de cobrança e/ou o dia de envio para atualizar em massa.');
+      return;
+    }
+
+    try {
+      await api.put('/subscriptions/bulk-update', {
+        ids: selectedSubscriptionIds,
+        billing_day: billingDay,
+        send_day: sendDay
+      });
+
+      setSuccessMessage(
+        `Atualização em massa concluída para ${selectedSubscriptionIds.length} assinatura(s).`
+      );
+      setSuccessOpen(true);
+      clearSelection();
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao atualizar assinaturas em massa', error);
+      setError(error.response?.data?.message || 'Erro ao atualizar assinaturas em massa.');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -412,8 +500,20 @@ const Subscriptions = () => {
       />
       
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Assinaturas</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Assinaturas</h1>
+          {selectedCount > 0 && (
+            <div className="text-sm text-gray-500">{selectedCount} selecionada(s)</div>
+          )}
+        </div>
         <div className="flex gap-3">
+          <button
+            onClick={() => setBulkEditOpen((v) => !v)}
+            disabled={selectedCount === 0}
+            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Alterar validade/envio
+          </button>
           <button
             onClick={handleGenerateDailyCharges}
             disabled={generatingCharges}
@@ -452,6 +552,92 @@ const Subscriptions = () => {
           </button>
         </div>
       </div>
+
+      {bulkEditOpen && (
+        <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-medium">Alteração em massa</h2>
+            <button
+              type="button"
+              onClick={() => setBulkEditOpen(false)}
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Fechar
+            </button>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+              <p className="text-red-700">{error}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <div>
+              <label htmlFor="bulk_billing_day" className="block text-sm font-medium text-gray-700">
+                Dia de cobrança (validade)
+              </label>
+              <input
+                type="number"
+                name="billing_day"
+                id="bulk_billing_day"
+                min="1"
+                max="28"
+                value={bulkEditData.billing_day}
+                onChange={handleBulkEditChange}
+                className="mt-1 focus:ring-purple-500 focus:border-purple-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="bulk_send_day" className="block text-sm font-medium text-gray-700">
+                Dia de envio
+              </label>
+              <input
+                type="number"
+                name="send_day"
+                id="bulk_send_day"
+                min="1"
+                max="28"
+                value={bulkEditData.send_day}
+                onChange={handleBulkEditChange}
+                disabled={bulkEditData.clear_send_day === true}
+                className="mt-1 focus:ring-purple-500 focus:border-purple-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md disabled:bg-gray-100"
+              />
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="bulk_clear_send_day"
+                  name="clear_send_day"
+                  checked={bulkEditData.clear_send_day === true}
+                  onChange={handleBulkEditChange}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="bulk_clear_send_day" className="text-sm text-gray-600">
+                  Limpar dia de envio
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-end gap-3">
+              <button
+                type="button"
+                onClick={applyBulkEdit}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                Aplicar ({selectedCount})
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Limpar seleção
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white shadow rounded-lg p-6 mb-6">
@@ -667,6 +853,14 @@ const Subscriptions = () => {
                         </span>
                       </div>
                       <div className="text-right">
+                        <div className="flex justify-end mb-2">
+                          <input
+                            type="checkbox"
+                            checked={isSubscriptionSelected(subscription.id)}
+                            onChange={() => toggleSubscriptionSelection(subscription.id)}
+                            className="h-4 w-4"
+                          />
+                        </div>
                         <div className="text-sm text-gray-700">{formatCurrency(subscription.amount)}</div>
                       </div>
                     </div>
@@ -710,6 +904,14 @@ const Subscriptions = () => {
             <table className="w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th scope="col" className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allFilteredSelected}
+                      onChange={(e) => setSelectionForFiltered(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                  </th>
                   <th 
                     scope="col" 
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none w-1/6"
@@ -798,6 +1000,14 @@ const Subscriptions = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredAndSortedSubscriptions.map((subscription) => (
                   <tr key={subscription.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={isSubscriptionSelected(subscription.id)}
+                        onChange={() => toggleSubscriptionSelection(subscription.id)}
+                        className="h-4 w-4"
+                      />
+                    </td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {subscription.client?.name && subscription.client.name.trim() !== '' ? subscription.client.name : subscription.client?.email || 'Cliente não encontrado'}

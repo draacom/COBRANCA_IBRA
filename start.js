@@ -37,6 +37,50 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function parseEnvFile(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return {};
+
+  const content = fs.readFileSync(filePath, 'utf8');
+  const env = {};
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eqIndex = line.indexOf('=');
+    if (eqIndex === -1) continue;
+
+    const key = line.slice(0, eqIndex).trim();
+    let value = line.slice(eqIndex + 1).trim();
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    env[key] = value;
+  }
+
+  return env;
+}
+
+function buildMysqlConnectionUriFromRootEnv() {
+  const dialect = (process.env.DB_DIALECT || '').toLowerCase();
+  if (dialect !== 'mysql') return null;
+
+  const host = process.env.DB_HOST;
+  const port = process.env.DB_PORT || '3306';
+  const user = process.env.DB_USER;
+  const pass = process.env.DB_PASS;
+  const name = process.env.DB_NAME;
+
+  if (!host || !user || !pass || !name) return null;
+
+  const encodedPass = encodeURIComponent(pass);
+  return `mysql://${user}:${encodedPass}@${host}:${port}/${name}`;
+}
+
 async function startBackend() {
   const backendPort = process.env.PORT || 8080;
   log('🚀 Iniciando Backend (Porta ' + backendPort + ')...', 'blue');
@@ -209,15 +253,101 @@ async function startEvolution() {
     return null;
   }
 
+  const evolutionEnvPath = fs.existsSync(path.join(evolutionPath, '.env'))
+    ? path.join(evolutionPath, '.env')
+    : fs.existsSync(path.join(evolutionPath, '.env.bak'))
+      ? path.join(evolutionPath, '.env.bak')
+      : null;
+
+  const evolutionEnvFromFile = parseEnvFile(evolutionEnvPath);
+
+  const mysqlUriFallback = buildMysqlConnectionUriFromRootEnv();
+  const mergedEvolutionEnv = {
+    ...process.env,
+    ...evolutionEnvFromFile,
+    PORT: '8081',
+    SERVER_PORT: '8081'
+  };
+
+  if (!mergedEvolutionEnv.SERVER_URL || mergedEvolutionEnv.SERVER_URL === 'http://localhost:8080') {
+    mergedEvolutionEnv.SERVER_URL = 'http://localhost:8081';
+  }
+
+  if (!mergedEvolutionEnv.DATABASE_PROVIDER) {
+    mergedEvolutionEnv.DATABASE_PROVIDER = mysqlUriFallback ? 'mysql' : 'postgresql';
+  }
+
+  if (!mergedEvolutionEnv.DATABASE_CONNECTION_URI && mysqlUriFallback) {
+    mergedEvolutionEnv.DATABASE_CONNECTION_URI = mysqlUriFallback;
+  }
+
+  if (!mergedEvolutionEnv.DATABASE_SAVE_DATA_INSTANCE) {
+    mergedEvolutionEnv.DATABASE_SAVE_DATA_INSTANCE = 'true';
+  }
+
+  if (!mergedEvolutionEnv.AUTHENTICATION_API_KEY && process.env.WHATSAPP_API_KEY) {
+    mergedEvolutionEnv.AUTHENTICATION_API_KEY = process.env.WHATSAPP_API_KEY;
+  }
+
+  if (!mergedEvolutionEnv.DATABASE_CONNECTION_URI) {
+    log(
+      '❌ Evolution API sem DATABASE_CONNECTION_URI. Configure em evolution-api-main/.env (ou .env.bak) ou no .env raiz.',
+      'red'
+    );
+    return null;
+  }
+
+  try {
+    const nodeModulesPath = path.join(evolutionPath, 'node_modules');
+    if (!fs.existsSync(nodeModulesPath)) {
+      log('📦 Instalando dependências da Evolution API...', 'blue');
+      const isWin = process.platform === 'win32';
+      const installCmd = isWin ? 'cmd.exe' : 'npm';
+      const installArgs = isWin ? ['/c', 'npm', 'install'] : ['install'];
+
+      await new Promise((resolve, reject) => {
+        const install = spawn(installCmd, installArgs, {
+          cwd: evolutionPath,
+          stdio: 'inherit',
+          shell: false,
+          env: mergedEvolutionEnv
+        });
+        install.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`Install failed: ${code}`))));
+        install.on('error', reject);
+      });
+    }
+
+    log('🔧 Gerando cliente Prisma (Evolution API)...', 'blue');
+    const isWin = process.platform === 'win32';
+    const genCmd = isWin ? 'cmd.exe' : 'npm';
+    const genArgs = isWin ? ['/c', 'npm', 'run', 'db:generate'] : ['run', 'db:generate'];
+
+    await new Promise((resolve, reject) => {
+      const gen = spawn(genCmd, genArgs, {
+        cwd: evolutionPath,
+        stdio: 'inherit',
+        shell: false,
+        env: mergedEvolutionEnv
+      });
+      gen.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`Prisma generate failed: ${code}`))));
+      gen.on('error', reject);
+    });
+  } catch (err) {
+    log(`❌ Falha ao preparar Prisma da Evolution API: ${err.message}`, 'red');
+    return null;
+  }
+
   const isWin = process.platform === 'win32';
   const cmd = isWin ? 'cmd.exe' : 'npm';
-  const args = isWin ? ['/c', 'npm', 'run', 'start:prod'] : ['run', 'start:prod'];
+  const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'prod' || String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+  const evolutionScript = isProd ? 'start:prod' : 'start';
+  const args = isWin ? ['/c', 'npm', 'run', evolutionScript] : ['run', evolutionScript];
 
   const evolution = spawn(cmd, args, {
     cwd: evolutionPath,
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: false,
-    env: { ...process.env, PORT: '8081', SERVER_PORT: '8081' }
+    env: mergedEvolutionEnv
   });
 
   evolution.stdout.on('data', (d) => {

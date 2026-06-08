@@ -339,7 +339,15 @@ export class InstanceController {
       };
     } catch (error) {
       this.logger.error(error);
-      return { error: true, message: error.toString() };
+      const message =
+        typeof error === 'string'
+          ? error
+          : typeof (error as any)?.message === 'string'
+            ? (error as any).message
+            : Array.isArray((error as any)?.message)
+              ? (error as any).message
+              : (error as any)?.error || (error as any)?.toString?.() || String(error);
+      return { error: true, message, details: error };
     }
   }
 
@@ -386,7 +394,15 @@ export class InstanceController {
       };
     } catch (error) {
       this.logger.error(error);
-      return { error: true, message: error.toString() };
+      const message =
+        typeof error === 'string'
+          ? error
+          : typeof (error as any)?.message === 'string'
+            ? (error as any).message
+            : Array.isArray((error as any)?.message)
+              ? (error as any).message
+              : (error as any)?.error || (error as any)?.toString?.() || String(error);
+      return { error: true, message, details: error };
     }
   }
 
